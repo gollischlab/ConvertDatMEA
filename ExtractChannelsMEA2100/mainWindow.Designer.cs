@@ -122,6 +122,7 @@
             this.flowLayoutPanel1.Name = "flowLayoutPanel1";
             this.flowLayoutPanel1.Size = new System.Drawing.Size(81, 203);
             this.flowLayoutPanel1.TabIndex = 11;
+            this.flowLayoutPanel1.Visible = false;
             // 
             // btnDown
             // 

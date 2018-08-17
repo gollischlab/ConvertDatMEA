@@ -1,10 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Text.RegularExpressions;
@@ -30,8 +25,16 @@ namespace ExtractChannels2
             //barProgress.GetCurrentParent().Invoke((Action)(() => barProgress.Value = (int)progress ));
             lstFiles2.Invoke((Action)(() =>
             {
-                var item = lstFiles2.FindItemWithText(stimulusId.ToString(), true, 0);
-                item.SubItems[2].Text = String.Format("{0:##.##%}", progress);
+                string stimulusToUpdate = stimulusId.ToString();
+                foreach (ListViewItem item in lstFiles2.Items)
+                {
+                    //var item = lstFiles2.FindItemWithText(stimulusId.ToString(), true, 0);
+                    if (item.SubItems[1].Text == stimulusToUpdate)
+                    {
+                        item.SubItems[2].Text = String.Format("{0:##.##%}", progress);
+                        return;
+                    }
+                }
             }));
         }
 
@@ -46,17 +49,29 @@ namespace ExtractChannels2
 
         private void ButtonClick_ExtractBins(object sender, EventArgs e)
         {
+            if (lstFiles2.CheckedItems.Count == 0)
+            {
+                MessageBox.Show("No files selected for processing.", "ExtractChannels - no files selected", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // Disable buttons
+            btnExtractSelected.Enabled = false;
+            btnClear.Enabled = false;
+            btnLoad.Enabled = false;
+
+            // Update status
             barProgress.Value = 0;
             barProgress.Visible = true;
-            barProgress.Maximum = lstFiles2.Items.Count;
+            barProgress.Maximum = lstFiles2.CheckedItems.Count;
             txtLabel.Text = "Extracting...";
 
             List<string> paths = new List<string>();
             List<int> stimuliId = new List<int>();
-            
-            for (int i = 0; i < lstFiles2.Items.Count; i++)
+
+            for (int i = 0; i < lstFiles2.CheckedItems.Count; i++)
             {
-                var listItem = lstFiles2.Items[i];
+                var listItem = lstFiles2.CheckedItems[i];
                 int stimulusId; // needs to be inside the loop for being properly used by the lambda below
                 if (!int.TryParse(listItem.SubItems[1].Text, out stimulusId))
                     stimulusId = 1000 + i;
@@ -71,24 +86,33 @@ namespace ExtractChannels2
                 {
                     for (int i = 0; i < paths.Count; i++)
                     {
+                        // Update current text file
                         txtCurrentfile.Invoke((Action)(() =>
                         {
                             txtCurrentfile.Text = paths[i];
                         }));
-
+            
+                        // Perform the real work
                         extractor.ExtractBins(paths[i], stimuliId[i]);
 
+                        // Update progress bar
                         barProgress.GetCurrentParent().Invoke((Action)(() =>
                         {
                             barProgress.Value += 1;
-                            if (barProgress.Value == barProgress.Maximum)
-                            {
-                                txtLabel.Text = "Ready";
-                                barProgress.Visible = false;
-                            }
                         }));
-
                     }
+
+                    barProgress.GetCurrentParent().Invoke((Action)(() =>
+                    {
+                        // Update status
+                        txtLabel.Text = "Ready";
+                        barProgress.Visible = false;
+
+                        // Re-enable buttons
+                        btnLoad.Enabled = true;
+                        btnExtractSelected.Enabled = true;
+                        btnClear.Enabled = true;
+                    }));
                 }
                 catch (Exception exc)
                 {
