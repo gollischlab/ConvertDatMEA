@@ -25,16 +25,18 @@ namespace ExtractChannels2
 
         OutputFunction _outputFunction = null;
         ProgressUpdate _progressUpdate = null;
+        BinaryWriter _writer = null;
 
         private void OutputLine(string line)
         {
             _outputFunction(line);
         }
 
-        public ChannelExtractor(OutputFunction function, ProgressUpdate updater)
+        public ChannelExtractor(OutputFunction function, ProgressUpdate updater, BinaryWriter writer)
         {
             _outputFunction = function;
             _progressUpdate = updater;
+            _writer = writer;
         }
 
         private byte[] ConvertRange(int[] data, InfoChannel electrode, int gain = 1)
@@ -167,9 +169,6 @@ namespace ExtractChannels2
         {
             Reader fileReader = new Reader();
             fileReader.FileOpen(filepath);
-            string rootPath = Path.GetDirectoryName(filepath);
-            rootPath = Path.Combine(rootPath, "RawChannels/");
-            Directory.CreateDirectory(rootPath);
 
 
             foreach (int recordId in fileReader.Recordings)
