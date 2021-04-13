@@ -1,5 +1,6 @@
 ﻿using System;
 
+using System.IO;
 using MC_StreamNetLib;
 using Mcs.RawDataFileIO;
 
@@ -20,11 +21,29 @@ namespace ExtractChannels2
             Console.WriteLine("----");
             Console.WriteLine("MetadataOnly: {0}", arguments.onlyMetadata);
 
+            // First check if all files exist
+            bool allfound = true;
             for (int stimIdx = 0; stimIdx < arguments.files.Count; stimIdx++)
             {
                 string file = arguments.files[stimIdx];
+                if (!File.Exists(file))
+                {
+                    Console.WriteLine("File not found: {0}", file);
 
-                //TODO: check if file exists
+                    // Continue to list all missing files
+                    allfound = false;
+                }
+            };
+            if (!allfound)
+            {
+                Console.ReadLine();
+                return;
+            }
+
+            // Read the stimulus files
+            for (int stimIdx = 0; stimIdx < arguments.files.Count; stimIdx++)
+            {
+                string file = arguments.files[stimIdx];
 
                 Console.WriteLine("- {0}", file);
                 try
