@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using Mcs.RawDataFileIO;
 
 namespace ExtractChannels2
@@ -10,6 +11,7 @@ namespace ExtractChannels2
         static readonly string fileExt = ".MSRD";
         static readonly string outDir = "ks_sorted";
         static readonly string outFile = "alldata.dat";
+        static readonly Regex rgx = new Regex("\\d+");
 
         private readonly List<string> files;
         protected string rootPath = null;
@@ -27,6 +29,8 @@ namespace ExtractChannels2
             bool sameDir = true;
             foreach (string file in files)
             {
+                string filename = Path.GetFileName(file);
+
                 if (!File.Exists(file))
                 {
                     Console.WriteLine("File not found: {0}", file);
@@ -37,21 +41,29 @@ namespace ExtractChannels2
                 // Verify file
                 if (Path.GetExtension(file).ToUpper() != fileExt)
                 {
-                    Console.WriteLine("Wrong file extension: {0}", file);
+                    Console.WriteLine("Wrong file extension: {0}", filename);
                     valid = false;
+                    continue;
                 }
-                else
+
+                // Verify the file name contains a stimulus ID, i.e. "01_stimulusname.msrd"
+                if (rgx.Match(Path.GetFileNameWithoutExtension(file)).Value == "")
                 {
-                    // Check file format
-                    try
-                    {
-                        fileReader.FileOpen(file);
-                    }
-                    catch (Exception ex) when (ex is ExcFileIO || ex is ArgumentException) // Any other exceptions necessary?
-                    {
-                        Console.WriteLine("Invalid or corrupt file: {0}", file);
-                        valid = false;
-                    }
+                    Console.WriteLine("File name does not contain a stimulus number: {0}", filename);
+                    valid = false;
+                    continue;
+                };
+
+                // Roughly check file format
+                try
+                {
+                    fileReader.FileOpen(file);
+                }
+                catch (Exception ex) when (ex is ExcFileIO || ex is ArgumentException) // Any other exceptions necessary?
+                {
+                    Console.WriteLine("Invalid or corrupt file: {0}", filename);
+                    valid = false;
+                    continue;
                 }
 
                 // Verify root directory
@@ -74,10 +86,11 @@ namespace ExtractChannels2
             return valid;
         }
 
-        private int FileTimeCompare(string file1, string file2)
+        private int FileStimulusIDCompare(string file1, string file2)
         {
-            // Assumes the files exist
-            return File.GetLastWriteTime(file1).CompareTo(File.GetLastWriteTime(file2));
+            Int32.TryParse(rgx.Match(file1).Value, out int id1);
+            Int32.TryParse(rgx.Match(file2).Value, out int id2);
+            return id1 - id2;
         }
 
         public FileProcessor(List<string> filelist, bool metaonly)
@@ -88,8 +101,8 @@ namespace ExtractChannels2
             if (!VerifyFiles())
                 return;
 
-            // Sort the files by file time to get the correct stimulus sequence in the output file
-            files.Sort(FileTimeCompare);
+            // Sort the files by stimulus ID
+            files.Sort(FileStimulusIDCompare);
 
             // Create the output directory
             rootPath = Path.Combine(rootPath, outDir) + Path.DirectorySeparatorChar;
