@@ -27,9 +27,14 @@ namespace ExtractChannels2
         ProgressUpdate _progressUpdate = null;
         BinaryWriter _writer = null;
 
+        private void OutputText(string text)
+        {
+            _outputFunction(text);
+        }
+
         private void OutputLine(string line)
         {
-            _outputFunction(line);
+            OutputText(line + "\r\n");
         }
 
         public ChannelExtractor(OutputFunction function, ProgressUpdate updater, BinaryWriter writer)
@@ -70,17 +75,14 @@ namespace ExtractChannels2
         }
 
 
-        private void WriteBin(string filePath, byte[] data)
+        private void WriteBin(byte[] data)
         {
-            using (BinaryWriter writer = new BinaryWriter(File.Open(filePath, FileMode.CreateNew)))
-            {
-                writer.Write((UInt32)(data.Count() / 2));
-                writer.Write((UInt32)2);
-                writer.Write((UInt32)3);
-                writer.Write((UInt32)4);
+            _writer.Write((UInt32)(data.Count() / 2));
+            _writer.Write((UInt32)2);
+            _writer.Write((UInt32)3);
+            _writer.Write((UInt32)4);
 
-                writer.Write(data);
-            }
+            _writer.Write(data);
         }
 
         /*
@@ -160,116 +162,143 @@ namespace ExtractChannels2
             }
         }
 
-        private string GetBinPath(int stimulusId, int binId, string root)
+        private void PrintMetadata(Reader fileReader)
         {
-            return String.Format("{0}{1}_{2}.bin", root, stimulusId, binId);
+            OutputLine("");
+
+            int numRec = fileReader.Recordings.Count;
+            if (numRec > 1)
+            {
+                OutputLine(String.Format("Number of recordings: {0}\r\n", numRec));
+            }
+
+            foreach (int recordId in fileReader.Recordings)
+            {
+                if (numRec > 1)
+                    OutputLine(String.Format("Recording {0}", recordId));
+
+                var header = fileReader.RecordingHdr[recordId];
+
+                // Count the total number of channels in recording (analog + electrodes, for example)
+                List<int> numChannels = new List<int>();
+                foreach (var analogStream in header.AnalogStreams)
+                    numChannels.Add(analogStream.Value.Entities.Count);
+                OutputLine(String.Format("Number of channels: {0} ({1})", numChannels.Sum(), string.Join(" + ", numChannels)));
+
+                // Loop over each recorded stream (analog data, filtered data, raw data, etc...)
+                foreach (var analogStream in header.AnalogStreams)
+                {
+                    OutputLine("");
+                    OutputLine(String.Format("{0}", analogStream.Value.Label));
+                    OutputLine(String.Format("{0}", analogStream.Key));
+                    OutputLine(String.Format("{0}", analogStream.Value.DataSubType));
+                }
+
+                OutputLine("");
+            }
         }
 
-        public void ExtractBins(string filepath, int stimulusId)
+        public void ExtractBins(string filepath, int stimulusId, bool onlyMetadata)
         {
             Reader fileReader = new Reader();
             fileReader.FileOpen(filepath);
 
+            PrintMetadata(fileReader);
+
+            if (onlyMetadata)
+                return;
 
             foreach (int recordId in fileReader.Recordings)
             {
-                OutputLine(String.Format("Recording {0}\r\n", recordId));
+                if (fileReader.Recordings.Count > 1)
+                    OutputLine(String.Format("Recording {0}", recordId));
+
                 var header = fileReader.RecordingHdr[recordId];
 
-
-                // Count the total number of channels in recording (analog + electrodes, for example)
-                int totalChannels = 0;
-                foreach (var analogStream in header.AnalogStreams)
-                    totalChannels += analogStream.Value.Entities.Count();
-                
-                // Loop over each recorded stream (analog data, filtered data, raw data, etc...)
-                foreach (var analogStream in header.AnalogStreams)
+                // Only get the filtered stream. Analog signals (i.e. frame times) are not written to that file
+                var streams = header.AnalogStreams.Where(v => v.Value.Label.Contains("Filter"));
+                if (streams.Count() != 1)
                 {
+                    throw new ExcFileIO("File contains more than one filtered stream");
+                }
 
-                    // Get metadata
-                    var analogInfo = analogStream.Value;
-                    var analogGuid = analogStream.Key;
-                    int signalGain = GetGain(analogInfo, false);
+                var streamInfo = streams.First().Value;
+                var streamGuid = streams.First().Key;
+                int signalGain = GetGain(streamInfo, false);
 
-                    OutputLine(String.Format("{0}\r\n", analogInfo.Label));
-                    OutputLine(String.Format("{0}\r\n", analogGuid));
-                    OutputLine(String.Format("{0}\r\n", analogInfo.DataSubType));
-                    OutputLine("------------------------\r\n");
+                long tF = header.Duration;
+                long t0 = 0;
+                long stride = 10000; // Number of samples, arbitrary?
 
-                    long tF = header.Duration;
-                    long t0 = 0;
-                    long stride = 10000;
+                // Nchannel × Nsamples
+                int[] buffer = new int[streamInfo.Entities.Count * stride];
+                byte[] bytebuffer = new byte[streamInfo.Entities.Count * stride * sizeof(ushort)];
 
+                while(t0*100 < tF)
+                {
+                    var entitiesIDs = streamInfo.Entities.GetIDs();
+                    int nEntities = entitiesIDs.Count();
 
-                    // Nchannel × Nsamples
-                    int[] buffer = new int[analogInfo.Entities.Count * stride];
-                    byte[] bytebuffer = new byte[analogInfo.Entities.Count * stride * sizeof(ushort)];
+                    // Someone should check this factor of *100. There's something odd about it...
+                    long maxSample = Math.Min((t0 + stride)*100, tF);
 
-                    // silly example ;P
-                    // ChunkWriter chunkwriter = new SuperSpecialWriter(...)
+                    Console.WriteLine(maxSample);
+                    Console.WriteLine(64e5);
+                    Console.WriteLine();
 
-                    while(t0*100 < tF)
-                    {
-                        var entitiesIDs = analogInfo.Entities.GetIDs();
-                        int nEntities = entitiesIDs.Count();
-
-
-                        // Someone should check this factor of *100. There's something odd about it...
-                        long maxSample = Math.Min((t0 + stride)*100, tF);
-
-                        var dataChunk = fileReader.GetChannelData<int>(recordId, analogGuid, entitiesIDs, t0 * 100, maxSample);
+                    var dataChunk = fileReader.GetChannelData<int>(recordId, streamGuid, entitiesIDs, t0 * 100, maxSample);
                         
-                        Console.Write("{0} -> {1}: ", t0, Math.Min((t0 + stride), tF));
-                        foreach (var channelChunk in dataChunk)
+                    Console.WriteLine("{0} -> {1}: ", t0, Math.Min((t0 + stride), tF));
+                    foreach (var channelChunk in dataChunk)
+                    {
+                        // channelChunk is weird. It has only one element.
+                        var rawdata = channelChunk.Value[t0 * 100];
+
+                        // Order the electrodes by channel map
+                        var electrode = streamInfo.Entities[channelChunk.Key];
+                        int keyID = GetBinID(streamInfo, electrode) - 1; // Indexing starts at zero
+
+                        Console.WriteLine("{0}: {1} = {2}", electrode.Label, channelChunk.Key - entitiesIDs.First(), keyID);
+
+                        // stores the chunk in place at the Nchannels vs Nsamples matrix
+                        for (int t = 0; t < Math.Min(stride, rawdata.Length); t++)
                         {
-                            // channelChunk is weird. It has only one element.
-                            var rawdata = channelChunk.Value[t0 * 100];
-
-                            // For now keyID is just the order that the amplifier writes the channels down. 
-                            // If you want to reorder channels into the order they appear on the array, you'd change it here. 
-                            int keyID = channelChunk.Key - entitiesIDs.First();
-                            
-                            // stores the chunk in place at the Nchannels vs Nsamples matrix
-                            for (int t = 0; t < Math.Min(stride, rawdata.Length); t++)
-                            {
-                                buffer[nEntities * t + keyID] = (rawdata[t]);
-                            }
-
-                            //Console.Write("{2} - [{0}: {1}] \t", elem.Key - analogInfo.Entities[entitiesIDs[0]].ID, elem.Value[t0 * 100].Length, t0);
-                            
-                            Console.Write('.');
-                            if (keyID % 16 == 15)
-                            {
-                                Console.WriteLine();
-                                Console.Write("{0} -> {1}: ", t0, Math.Min((t0 + stride), tF));
-                            }
+                            buffer[nEntities * t + keyID] = (rawdata[t]);
                         }
 
-                        if (nEntities % 16 != 15)
+                        //Console.Write("{2} - [{0}: {1}] \t", elem.Key - analogInfo.Entities[entitiesIDs[0]].ID, elem.Value[t0 * 100].Length, t0);
+
+                        /* Console.Write('.');
+                        if (keyID % 16 == 15)
+                        {
                             Console.WriteLine();
-
-                        ConvertRange(buffer, analogInfo.Entities.First(), signalGain, bytebuffer);
-
-                        // silly example :p
-                        // chunkwriter.WriteChunk(bytebuffer);
-
-                        t0 += stride;                                                
+                            Console.Write("{0} -> {1}: ", t0, Math.Min((t0 + stride), tF));
+                        }*/
                     }
 
-                    // Old style. Kept here just to show the _progressUpdate call...
-                    /*foreach (var electrode in analogInfo.Entities)
-                        {   var data = fileReader.GetChannelData<int>(recordId, analogGuid, electrode.ID)[0];
+                        /* if (nEntities % 16 != 15)
+                        Console.WriteLine();*/
 
-                            int binId = GetBinID(analogInfo, electrode);
-                            string binPath = GetBinPath(stimulusId, binId, rootPath);
-                            //byte[] outputData = ConvertRange(data, electrode, signalGain);
-                                
-                            WriteBin(binPath, ConvertRange(data, electrode, signalGain));
-                            DisplayProgress(electrode, binId, stimulusId);
-                            processedChannels += 1;
-                            _progressUpdate((float)processedChannels / totalChannels, stimulusId);
-                        }*/
+                    ConvertRange(buffer, streamInfo.Entities.First(), signalGain, bytebuffer);
+
+                    WriteBin(bytebuffer);
+
+                    t0 += stride;
                 }
+
+                // Old style. Kept here just to show the _progressUpdate call...
+                /*foreach (var electrode in analogInfo.Entities)
+                    {   var data = fileReader.GetChannelData<int>(recordId, analogGuid, electrode.ID)[0];
+
+                        int binId = GetBinID(analogInfo, electrode);
+                        string binPath = GetBinPath(stimulusId, binId, rootPath);
+                        //byte[] outputData = ConvertRange(data, electrode, signalGain);
+                                
+                        WriteBin(binPath, ConvertRange(data, electrode, signalGain));
+                        DisplayProgress(electrode, binId, stimulusId);
+                        processedChannels += 1;
+                        _progressUpdate((float)processedChannels / totalChannels, stimulusId);
+                    }*/
             }
             fileReader.FileClose();
         }
@@ -290,7 +319,7 @@ namespace ExtractChannels2
 
         private void DisplayProgress(InfoChannel electrode, int BinID, int stimulusId)
         {
-            OutputLine(String.Format("{3,2} - {0,3} ({1}, bin {2,3})\r\n", electrode.ID, electrode.Label, BinID, stimulusId));
+            OutputLine(String.Format("{3,2} - {0,3} ({1}, bin {2,3})", electrode.ID, electrode.Label, BinID, stimulusId));
         }
     }
 }

@@ -20,7 +20,7 @@ namespace ExtractChannels2
         {
             if (files.Count < 1)
             {
-                Console.WriteLine("No files passed");
+                OutputError("No files passed");
                 return false;
             }
 
@@ -33,7 +33,7 @@ namespace ExtractChannels2
 
                 if (!File.Exists(file))
                 {
-                    Console.WriteLine("File not found: {0}", file);
+                    OutputError(String.Format("File not found: {0}", file));
                     valid = false;
                     continue;
                 }
@@ -41,7 +41,7 @@ namespace ExtractChannels2
                 // Verify file
                 if (Path.GetExtension(file).ToUpper() != fileExt)
                 {
-                    Console.WriteLine("Wrong file extension: {0}", filename);
+                    OutputError(String.Format("Wrong file extension: {0}", filename));
                     valid = false;
                     continue;
                 }
@@ -49,7 +49,7 @@ namespace ExtractChannels2
                 // Verify the file name contains a stimulus ID, i.e. "01_stimulusname.msrd"
                 if (rgx.Match(Path.GetFileNameWithoutExtension(file)).Value == "")
                 {
-                    Console.WriteLine("File name does not contain a stimulus number: {0}", filename);
+                    OutputError(String.Format("File name does not contain a stimulus number: {0}", filename));
                     valid = false;
                     continue;
                 };
@@ -58,10 +58,11 @@ namespace ExtractChannels2
                 try
                 {
                     fileReader.FileOpen(file);
+                    fileReader.FileClose();
                 }
                 catch (Exception ex) when (ex is ExcFileIO || ex is ArgumentException) // Any other exceptions necessary?
                 {
-                    Console.WriteLine("Invalid or corrupt file: {0}", filename);
+                    OutputError(String.Format("Invalid or corrupt file {0}", filename), ex);
                     valid = false;
                     continue;
                 }
@@ -80,7 +81,7 @@ namespace ExtractChannels2
             // Add general fails at the end
             if (!sameDir)
             {
-                Console.WriteLine("All files must reside in the same directory");
+                OutputError("All files must reside in the same directory");
             }
 
             return valid;
@@ -115,7 +116,7 @@ namespace ExtractChannels2
                                     || ex is ArgumentException
                                     || ex is PathTooLongException)
             {
-                Console.WriteLine("Directory could not be created: {0}", outDir);
+                OutputError(String.Format("Directory {0} could not be created", outDir), ex);
                 return;
             }
 
@@ -123,8 +124,12 @@ namespace ExtractChannels2
             string outPath = Path.Combine(rootPath, outFile);
             if (File.Exists(outPath))
             {
-                Console.WriteLine("Output file already exists: {0}", outPath);
+#if DEBUG
+                File.Delete(outPath);
+#else
+                OutputError(String.Format("Output file already exists: {0}", outPath));
                 return;
+#endif
             }
 
             // All set, let's go
@@ -140,16 +145,29 @@ namespace ExtractChannels2
                     Console.WriteLine("Processing {0}", file);
                     try
                     {
-                        extractor.ExtractBins(file, stimIdx);
+                        extractor.ExtractBins(file, stimIdx, metaonly);
                     }
-                    catch (ExcFileIO)
+                    catch (ExcFileIO ex)
                     {
-                        Console.WriteLine("Reading error. Corrupt file?");
+                        OutputError("Reading error", ex);
+                        break; // Abort
                     }
                 }
             }
 
             Console.WriteLine("Done");
+        }
+
+        private static void OutputError(string text, Exception ex = null)
+        {
+            if (String.IsNullOrWhiteSpace(text))
+                text = "Error";
+            Console.ForegroundColor = ConsoleColor.DarkRed;
+            if (ex == null || String.IsNullOrWhiteSpace(ex.Message))
+                Console.Error.WriteLine(text);
+            else
+                Console.Error.WriteLine("{0}: {1}", text, ex.Message);
+            Console.ResetColor();
         }
 
         private static void ProgressUpdate(double percent, int stimulusId)
@@ -162,9 +180,9 @@ namespace ExtractChannels2
             Console.SetCursorPosition(originalLeft, originalTop);
         }
 
-        private static void OutputFunction(string line)
+        private static void OutputFunction(string text)
         {
-            Console.WriteLine(line);
+            Console.Write(text);
         }
     }
 }
