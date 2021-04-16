@@ -1,18 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
+using Mcs.DataStream;
 using Mcs.RawDataFileIO;
 
 namespace ExtractChannels2
 {
     public class FileProcessor
     {
-        static readonly string fileExt = ".MSRD";
-        static readonly string outDir = "ks_sorted";
-        static readonly string outFile = "alldata.dat";
+        const string fileExt = ".MSRD";
+        const string outDir = "ks_sorted";
+        const string outFile = "alldata.dat";
         static readonly Regex rgx = new Regex("\\d+");
 
+        private readonly int stimulusId = 0;
+        private readonly string stimulusFileName = "";
         private readonly List<string> files;
         protected string rootPath = null;
 
@@ -58,6 +62,23 @@ namespace ExtractChannels2
                 try
                 {
                     fileReader.FileOpen(file);
+
+                    // Check for exactly one recording
+                    if (fileReader.Recordings.Count != 1)
+                        throw new ExcFileIO("File contains no or more than one recording");
+                    var header = fileReader.RecordingHdr.FirstOrDefault().Value;
+
+                    // Check for exactly one analog stream
+                    var streams = header.AnalogStreams.Where(v => v.Value.DataSubType == enAnalogSubType.Auxiliary && v.Value.Label.Contains("Analog"));
+                    if (streams.Count() != 1)
+                        throw new ExcFileIO("File contains no or more than one analog stream");
+
+                    // Check for exaclty one filtered stream
+                    streams = header.AnalogStreams.Where(v => v.Value.DataSubType == enAnalogSubType.Electrode && v.Value.Label.Contains("Filter"));
+                    if (streams.Count() != 1)
+                        throw new ExcFileIO("File contains no or more than one filtered stream");
+                    var filtered = streams.First();
+
                     fileReader.FileClose();
                 }
                 catch (Exception ex) when (ex is ExcFileIO || ex is ArgumentException) // Any other exceptions necessary?
@@ -87,10 +108,16 @@ namespace ExtractChannels2
             return valid;
         }
 
+        private int GetStimulusID(string file)
+        {
+            Int32.TryParse(rgx.Match(file).Value, out int id);
+            return id;
+        }
+
         private int FileStimulusIDCompare(string file1, string file2)
         {
-            Int32.TryParse(rgx.Match(file1).Value, out int id1);
-            Int32.TryParse(rgx.Match(file2).Value, out int id2);
+            int id1 = GetStimulusID(file1);
+            int id2 = GetStimulusID(file2);
             return id1 - id2;
         }
 
@@ -132,30 +159,59 @@ namespace ExtractChannels2
 #endif
             }
 
+            // Same for the analog files
+            string[] stimPath = new string[files.Count];
+            for (int fileIdx = 0; fileIdx < files.Count; fileIdx++)
+            {
+                string file = files[fileIdx];
+                stimPath[fileIdx] = Path.Combine(rootPath, string.Format("{0}_aux.dat", Path.GetFileNameWithoutExtension(file)));
+                if (File.Exists(stimPath[fileIdx]))
+                {
+#if DEBUG
+                    File.Delete(stimPath[fileIdx]);
+#else
+                    OutputError(String.Format("Output file already exists: {0}", stimPath[i]));
+                    return;
+#endif
+                }
+            }
+
             // All set, let's go
+            Console.CursorVisible = false;
             using (BinaryWriter writer = new BinaryWriter(File.Open(outPath, FileMode.CreateNew)))
             {
                 ChannelExtractor extractor = new ChannelExtractor(OutputFunction, ProgressUpdate, writer);
 
                 // Read the stimulus files
-                for (int stimIdx = 0; stimIdx < files.Count; stimIdx++)
+                for (int fileIdx = 0; fileIdx < files.Count; fileIdx++)
                 {
-                    string file = files[stimIdx];
+                    string file = files[fileIdx];
+                    stimulusFileName = Path.GetFileNameWithoutExtension(file);
+                    stimulusId = GetStimulusID(stimulusFileName);
 
-                    Console.WriteLine("Processing {0}", file);
-                    try
+                    Console.WriteLine("------------------------\r\n");
+                    Console.WriteLine("Processing {0}\r\n", file);
+
+                    using (BinaryWriter auxWriter = new BinaryWriter(File.Open(stimPath[fileIdx], FileMode.CreateNew)))
                     {
-                        extractor.ExtractBins(file, stimIdx, metaonly);
+                        try
+                        {
+                            extractor.ExtractBins(file, metaonly, auxWriter);
+                        }
+                        catch (ExcFileIO ex)
+                        {
+                            OutputError("Reading error", ex);
+                            break; // Abort
+                        }
                     }
-                    catch (ExcFileIO ex)
-                    {
-                        OutputError("Reading error", ex);
-                        break; // Abort
-                    }
+
+                    ClearConsoleLine(GetLastConsoleLine());
                 }
             }
+            Console.CursorVisible = true;
 
-            Console.WriteLine("Done");
+            Console.WriteLine("------------------------");
+            Console.WriteLine("\r\nDone");
         }
 
         private static void OutputError(string text, Exception ex = null)
@@ -170,14 +226,49 @@ namespace ExtractChannels2
             Console.ResetColor();
         }
 
-        private static void ProgressUpdate(double percent, int stimulusId)
+        private static int GetLastConsoleLine()
+        {
+            return Math.Max(Console.CursorTop, Console.WindowHeight);
+        }
+
+        private static void ClearConsoleLine(int line)
         {
             int originalTop = Console.CursorTop;
             int originalLeft = Console.CursorLeft;
 
-            Console.SetCursorPosition(0, Math.Max(Console.CursorTop, Console.WindowHeight));
-            Console.WriteLine("{0}: {1:##.##%}", stimulusId, percent);
+            Console.SetCursorPosition(0, line);
+            Console.Write(new string(' ', Console.WindowWidth));
             Console.SetCursorPosition(originalLeft, originalTop);
+        }
+
+        private void ProgressUpdate(double percent, string type = "")
+        {
+            if (!String.IsNullOrWhiteSpace(type))
+                type = "(" + type + ")";
+            string progress = string.Format("{0,6:##0.00%}", percent);
+
+            int originalTop = Console.CursorTop;
+            int originalLeft = Console.CursorLeft;
+
+            // Get last line
+            int line = GetLastConsoleLine();
+
+            // Clear that line
+            ClearConsoleLine(line);
+
+            // Write stimulus file info (left)
+            Console.SetCursorPosition(0, line);
+            Console.Write("{0,2}: {1} {2}", stimulusId, stimulusFileName, type);
+
+            // Write progress (right)
+            Console.SetCursorPosition(Math.Max(Console.CursorLeft, Console.WindowWidth) - 7, line);
+            Console.Write(progress);
+
+            // Restore cursor position
+            Console.SetCursorPosition(originalLeft, originalTop);
+
+            // Update title bar
+            Console.Title = string.Format("{0}: {1}", stimulusId, progress);
         }
 
         private static void OutputFunction(string text)
