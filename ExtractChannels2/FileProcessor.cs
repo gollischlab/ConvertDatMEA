@@ -208,10 +208,13 @@ namespace ExtractChannels2
                     ClearConsoleLine(GetLastConsoleLine());
                 }
             }
-            Console.CursorVisible = true;
 
             Console.WriteLine("------------------------");
-            Console.WriteLine("\r\nDone");
+            Console.WriteLine();
+            Console.WriteLine("Done");
+
+            Console.CursorVisible = true;
+            Console.Title = "100% complete";
         }
 
         private static void OutputError(string text, Exception ex = null)

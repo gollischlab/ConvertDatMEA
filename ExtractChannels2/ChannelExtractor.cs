@@ -79,16 +79,19 @@ namespace ExtractChannels2
         }
 
 
-        private void WriteBin(InfoStreamAnalog analogInfo, byte[] data)
+        private void WriteBin(InfoStreamAnalog analogInfo, byte[] data, int length = 0)
         {
+            if (length == 0)
+                length = data.Count();
+
             switch (analogInfo.DataSubType)
             {
                 case enAnalogSubType.Electrode:
-                    _channelWriter.Write(data);
+                    _channelWriter.Write(data, 0, length);
                     break;
 
                 case enAnalogSubType.Auxiliary:
-                    _auxWriter.Write(data);
+                    _auxWriter.Write(data, 0, length);
                     break;
 
                 default:
@@ -227,9 +230,9 @@ namespace ExtractChannels2
                     int nEntities = entitiesIDs.Count();
 
                     // Someone should check this factor of *100. There's something odd about it...
-                    long maxSample = Math.Min((t0 + stride) * 100, tF);
+                    long chunkSize = Math.Min(tF - t0 * 100, stride * 100);
 
-                    var dataChunk = fileReader.GetChannelData<int>(recordId, analogGuid, entitiesIDs, t0 * 100, maxSample);
+                    var dataChunk = fileReader.GetChannelData<int>(recordId, analogGuid, entitiesIDs, t0 * 100, t0 * 100 + chunkSize);
 
                     foreach (var channelChunk in dataChunk)
                     {
@@ -249,7 +252,9 @@ namespace ExtractChannels2
 
                     ConvertRange(buffer, analogInfo.Entities.First(), signalGain, bytebuffer);
 
-                    WriteBin(analogInfo, bytebuffer);
+                    // Only write the portion that was read
+                    int length = (int)(nEntities * chunkSize / 100 * sizeof(ushort));
+                    WriteBin(analogInfo, bytebuffer, length);
 
                     _progressUpdate((float)t0 * 100 / tF, analogInfo.DataSubType == enAnalogSubType.Auxiliary ? analogInfo.DataSubType.ToString() : "");
 
@@ -272,11 +277,6 @@ namespace ExtractChannels2
                 default:
                     return 1;
             }
-        }
-
-        private void DisplayProgress(InfoChannel electrode, int BinID, int stimulusId)
-        {
-            OutputLine(String.Format("{3,2} - {0,3} ({1}, bin {2,3})", electrode.ID, electrode.Label, BinID, stimulusId));
         }
     }
 }
