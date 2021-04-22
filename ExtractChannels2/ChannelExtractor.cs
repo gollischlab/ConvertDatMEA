@@ -59,7 +59,7 @@ namespace ExtractChannels2
                 throw new ArgumentException("Data and newData must be the same size");
 
             double voltToSample = (1 << 16) / (amplifierMaxVolt - amplifierMinVolt); // Output should have a 16-bit range
-            double electrodeConvFactor = electrode.ConversionFactor            // Picovolt (assuming an exponent of -12)
+            double electrodeConvFactor = electrode.ConversionFactor            // Convert to:
                                        * Math.Pow(10, electrode.Unit.Exponent) // Volt
                                        * 1e3                                   // Millivolt
                                        * gain;
@@ -77,7 +77,6 @@ namespace ExtractChannels2
                newData[2 * i + 1] = inBytes[1];
            });
         }
-
 
         private void WriteBin(InfoStreamAnalog analogInfo, byte[] data, int length = 0)
         {
@@ -151,52 +150,10 @@ namespace ExtractChannels2
             }
         }
 
-        private void PrintMetadata(Reader fileReader)
-        {
-            int numRec = fileReader.Recordings.Count;
-            if (numRec > 1)
-            {
-                OutputLine(String.Format("Number of recordings: {0}\r\n", numRec));
-            }
-
-            foreach (int recordId in fileReader.Recordings)
-            {
-                if (numRec > 1)
-                    OutputLine(String.Format("Recording {0}", recordId));
-
-                var header = fileReader.RecordingHdr[recordId];
-
-                // Count the total number of channels in recording (analog + electrodes, for example)
-                List<int> numChannels = new List<int>();
-                foreach (var analogStream in header.AnalogStreams)
-                    numChannels.Add(analogStream.Value.Entities.Count);
-                OutputLine(String.Format("Number of channels: {0} ({1})", numChannels.Sum(), string.Join(" + ", numChannels)));
-
-                // Loop over each recorded stream (analog data, filtered data, raw data, etc...)
-                foreach (var analogStream in header.AnalogStreams)
-                {
-                    OutputLine("");
-                    OutputLine(String.Format("{0}", analogStream.Value.Label));
-                    OutputLine(String.Format("{0}", analogStream.Key));
-                    OutputLine(String.Format("{0}", analogStream.Value.DataSubType));
-                }
-
-                OutputLine("");
-            }
-        }
-
-        public void ExtractBins(string filepath, bool onlyMetadata, BinaryWriter auxWriter)
+        public void ExtractBins(string filepath, BinaryWriter auxWriter)
         {
             Reader fileReader = new Reader();
             fileReader.FileOpen(filepath);
-
-            // Metadata
-            PrintMetadata(fileReader);
-            if (onlyMetadata)
-            {
-                fileReader.FileClose();
-                return;
-            }
 
             // Frame time file for this stimulus
             _auxWriter = auxWriter;

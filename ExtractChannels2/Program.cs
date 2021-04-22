@@ -7,16 +7,23 @@ namespace ExtractChannels2
     {
         static void Main(string[] args)
         {
-            ExtractArguments.DebugPrintArgs(args);
-
             ExtractArguments arguments = new ExtractArguments(args);
 
+#if DEBUG
+            ExtractArguments.DebugPrintArgs(args);
             Console.WriteLine("----");
             Console.WriteLine("MetadataOnly: {0}", arguments.onlyMetadata);
             Console.WriteLine();
+#endif
 
-            FileProcessor proc = new FileProcessor(arguments.files, arguments.onlyMetadata);
+            FileProcessor files = new FileProcessor(arguments.files);
 
+            if (arguments.onlyMetadata)
+                files.PrintMetadata();
+            else
+                files.Convert();
+
+            // Remove this to close the programm when done
             Console.ReadLine();
         }
     }

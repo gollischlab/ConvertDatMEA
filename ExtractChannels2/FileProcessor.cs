@@ -15,88 +15,98 @@ namespace ExtractChannels2
         const string outFile = "alldata.dat";
         static readonly Regex rgx = new Regex("\\d+");
 
-        private readonly int stimulusId = 0;
-        private readonly string stimulusFileName = "";
+        private int stimulusId = 0;
+        private string stimulusFileName = "";
         private readonly List<string> files;
         protected string rootPath = null;
+        private readonly bool verified = false;
+        private bool sameDir = true;
+        private readonly Reader fileReader = new Reader();
+
+        private int bufferline = 0;
+
+        private bool CheckFile(string file)
+        {
+            string filename = Path.GetFileName(file);
+
+            if (!File.Exists(file))
+            {
+                OutputError(String.Format("File not found: {0}", file));
+                return false;
+            }
+
+            // Verify file
+            if (Path.GetExtension(file).ToUpper() != fileExt)
+            {
+                OutputError(String.Format("Wrong file extension: {0}", filename));
+                return false;
+            }
+
+            // Verify the file name contains a stimulus ID, i.e. "01_stimulusname.msrd"
+            if (rgx.Match(Path.GetFileNameWithoutExtension(file)).Value == "")
+            {
+                OutputError(String.Format("File name does not contain a stimulus number: {0}", filename));
+                return false;
+            };
+
+            // Roughly check file format
+            try
+            {
+                fileReader.FileOpen(file);
+
+                // Check for exactly one recording
+                if (fileReader.Recordings.Count != 1)
+                    throw new ExcFileIO("File contains no or more than one recording");
+                var header = fileReader.RecordingHdr.FirstOrDefault().Value;
+
+                // Check for exactly one analog stream
+                var streams = header.AnalogStreams.Where(v => v.Value.DataSubType == enAnalogSubType.Auxiliary && v.Value.Label.Contains("Analog"));
+                if (streams.Count() != 1)
+                    throw new ExcFileIO("File contains no or more than one analog stream");
+
+                // Check for exaclty one filtered stream
+                streams = header.AnalogStreams.Where(v => v.Value.DataSubType == enAnalogSubType.Electrode && v.Value.Label.Contains("Filter"));
+                if (streams.Count() != 1)
+                    throw new ExcFileIO("File contains no or more than one filtered stream");
+                var filtered = streams.First();
+
+                fileReader.FileClose();
+            }
+            catch (Exception ex) when (ex is ExcFileIO || ex is ArgumentException) // Any other exceptions necessary?
+            {
+                OutputError(String.Format("Invalid or corrupt file {0}", filename), ex);
+                return false;
+            }
+
+            // Verify root directory
+            if (rootPath == null)
+            {
+                rootPath = Path.GetDirectoryName(file);
+            }
+            else if (rootPath != Path.GetDirectoryName(file))
+            {
+                sameDir = false;
+                return false;
+            }
+
+            return true;
+        }
 
         private bool VerifyFiles()
         {
+            if (verified)
+                return true;
+
             if (files.Count < 1)
             {
                 OutputError("No files passed");
                 return false;
             }
 
-            Reader fileReader = new Reader();
             bool valid = true;
-            bool sameDir = true;
             foreach (string file in files)
             {
-                string filename = Path.GetFileName(file);
-
-                if (!File.Exists(file))
-                {
-                    OutputError(String.Format("File not found: {0}", file));
-                    valid = false;
-                    continue;
-                }
-
-                // Verify file
-                if (Path.GetExtension(file).ToUpper() != fileExt)
-                {
-                    OutputError(String.Format("Wrong file extension: {0}", filename));
-                    valid = false;
-                    continue;
-                }
-
-                // Verify the file name contains a stimulus ID, i.e. "01_stimulusname.msrd"
-                if (rgx.Match(Path.GetFileNameWithoutExtension(file)).Value == "")
-                {
-                    OutputError(String.Format("File name does not contain a stimulus number: {0}", filename));
-                    valid = false;
-                    continue;
-                };
-
-                // Roughly check file format
-                try
-                {
-                    fileReader.FileOpen(file);
-
-                    // Check for exactly one recording
-                    if (fileReader.Recordings.Count != 1)
-                        throw new ExcFileIO("File contains no or more than one recording");
-                    var header = fileReader.RecordingHdr.FirstOrDefault().Value;
-
-                    // Check for exactly one analog stream
-                    var streams = header.AnalogStreams.Where(v => v.Value.DataSubType == enAnalogSubType.Auxiliary && v.Value.Label.Contains("Analog"));
-                    if (streams.Count() != 1)
-                        throw new ExcFileIO("File contains no or more than one analog stream");
-
-                    // Check for exaclty one filtered stream
-                    streams = header.AnalogStreams.Where(v => v.Value.DataSubType == enAnalogSubType.Electrode && v.Value.Label.Contains("Filter"));
-                    if (streams.Count() != 1)
-                        throw new ExcFileIO("File contains no or more than one filtered stream");
-                    var filtered = streams.First();
-
-                    fileReader.FileClose();
-                }
-                catch (Exception ex) when (ex is ExcFileIO || ex is ArgumentException) // Any other exceptions necessary?
-                {
-                    OutputError(String.Format("Invalid or corrupt file {0}", filename), ex);
-                    valid = false;
-                    continue;
-                }
-
-                // Verify root directory
-                if (rootPath == null)
-                {
-                    rootPath = Path.GetDirectoryName(file);
-                }
-                else if (rootPath != Path.GetDirectoryName(file))
-                {
-                    valid = sameDir = false;
-                }
+                valid = valid && CheckFile(file);
             }
 
             // Add general fails at the end
@@ -121,16 +131,70 @@ namespace ExtractChannels2
             return id1 - id2;
         }
 
-        public FileProcessor(List<string> filelist, bool metaonly)
+        public FileProcessor(List<string> filelist)
         {
             files = filelist;
 
             // Need to check all files before starting the conversion
-            if (!VerifyFiles())
-                return;
+            verified = VerifyFiles();
 
             // Sort the files by stimulus ID
             files.Sort(FileStimulusIDCompare);
+        }
+
+        public void PrintMetadata()
+        {
+            if (!verified)
+                return;
+
+            foreach (string file in files)
+            {
+                fileReader.FileOpen(file);
+
+                Console.WriteLine("------------------");
+                Console.WriteLine();
+                Console.WriteLine(file);
+                Console.WriteLine();
+
+                int numRec = fileReader.Recordings.Count;
+                if (numRec > 1)
+                {
+                    Console.WriteLine("Number of recordings: {0}\r\n", numRec);
+                }
+
+                foreach (int recordId in fileReader.Recordings)
+                {
+                    if (numRec > 1)
+                        Console.WriteLine("Recording {0}", recordId);
+
+                    var header = fileReader.RecordingHdr[recordId];
+
+                    // Count the total number of channels in recording (analog + electrodes, for example)
+                    List<int> numChannels = new List<int>();
+                    foreach (var analogStream in header.AnalogStreams)
+                        numChannels.Add(analogStream.Value.Entities.Count);
+                    Console.WriteLine("Number of channels: {0} ({1})", numChannels.Sum(), string.Join(" + ", numChannels));
+
+                    // Loop over each recorded stream (analog data, filtered data, raw data, etc...)
+                    foreach (var analogStream in header.AnalogStreams)
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine("{0}", analogStream.Value.Label);
+                        Console.WriteLine("{0}", analogStream.Key);
+                        Console.WriteLine("{0}", analogStream.Value.DataSubType);
+                    }
+
+                    Console.WriteLine();
+                }
+
+                fileReader.FileClose();
+            }
+        }
+
+        public void Convert()
+        {
+            if (!verified)
+                return;
 
             // Create the output directory
             rootPath = Path.Combine(rootPath, outDir) + Path.DirectorySeparatorChar;
@@ -148,6 +212,7 @@ namespace ExtractChannels2
             }
 
             // Make sure not to accidentally overwrite an existing extraction
+            bool fileExists = false;
             string outPath = Path.Combine(rootPath, outFile);
             if (File.Exists(outPath))
             {
@@ -155,7 +220,7 @@ namespace ExtractChannels2
                 File.Delete(outPath);
 #else
                 OutputError(String.Format("Output file already exists: {0}", outPath));
-                return;
+                fileExists = true;
 #endif
             }
 
@@ -170,14 +235,19 @@ namespace ExtractChannels2
 #if DEBUG
                     File.Delete(stimPath[fileIdx]);
 #else
-                    OutputError(String.Format("Output file already exists: {0}", stimPath[i]));
-                    return;
+                    OutputError(String.Format("Output file already exists: {0}", stimPath[fileIdx]));
+                    fileExists = true;
 #endif
                 }
             }
 
+            if (fileExists)
+                return;
+
             // All set, let's go
+            Console.WriteLine("\r\n");
             Console.CursorVisible = false;
+            bool success = true;
             using (BinaryWriter writer = new BinaryWriter(File.Open(outPath, FileMode.CreateNew)))
             {
                 ChannelExtractor extractor = new ChannelExtractor(OutputFunction, ProgressUpdate, writer);
@@ -189,18 +259,18 @@ namespace ExtractChannels2
                     stimulusFileName = Path.GetFileNameWithoutExtension(file);
                     stimulusId = GetStimulusID(stimulusFileName);
 
-                    Console.WriteLine("------------------------\r\n");
-                    Console.WriteLine("Processing {0}\r\n", file);
+                    Console.WriteLine("Processing {0}", file);
 
                     using (BinaryWriter auxWriter = new BinaryWriter(File.Open(stimPath[fileIdx], FileMode.CreateNew)))
                     {
                         try
                         {
-                            extractor.ExtractBins(file, metaonly, auxWriter);
+                            extractor.ExtractBins(file, auxWriter);
                         }
                         catch (ExcFileIO ex)
                         {
                             OutputError("Reading error", ex);
+                            success = false;
                             break; // Abort
                         }
                     }
@@ -208,13 +278,19 @@ namespace ExtractChannels2
                     ClearConsoleLine(GetLastConsoleLine());
                 }
             }
-
-            Console.WriteLine("------------------------");
-            Console.WriteLine();
-            Console.WriteLine("Done");
-
             Console.CursorVisible = true;
-            Console.Title = "100% complete";
+
+            if (success)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Done");
+                Console.Title = "100% complete";
+            }
+            else
+            {
+                Console.WriteLine();
+                Console.Title = "Conversion failed";
+            }
         }
 
         private static void OutputError(string text, Exception ex = null)
@@ -248,23 +324,33 @@ namespace ExtractChannels2
         {
             if (!String.IsNullOrWhiteSpace(type))
                 type = "(" + type + ")";
+            string info = string.Format("{0,2}: {1} {2}", stimulusId, stimulusFileName, type);
             string progress = string.Format("{0,6:##0.00%}", percent);
 
             int originalTop = Console.CursorTop;
             int originalLeft = Console.CursorLeft;
 
-            // Get last line
-            int line = GetLastConsoleLine();
-
-            // Clear that line
-            ClearConsoleLine(line);
+            // Clear previously used line and set to last line (semi-robust to scrolling and resizing)
+            ClearConsoleLine(bufferline);
+            bufferline = GetLastConsoleLine();
+            ClearConsoleLine(bufferline);
 
             // Write stimulus file info (left)
-            Console.SetCursorPosition(0, line);
-            Console.Write("{0,2}: {1} {2}", stimulusId, stimulusFileName, type);
+            Console.SetCursorPosition(0, bufferline);
+            Console.Write(info);
 
-            // Write progress (right)
-            Console.SetCursorPosition(Math.Max(Console.CursorLeft, Console.WindowWidth) - 7, line);
+            // Show progress bar (if there is room for it)
+            int percentWidth = Console.BufferWidth - (info.Length + progress.Length + 6);
+            if (5 < percentWidth && percentWidth < Console.BufferWidth)
+            {
+                Console.SetCursorPosition(info.Length + 1, bufferline);
+                Console.Write("[" + new string('#', (int)(percentWidth * percent)));
+                Console.SetCursorPosition(info.Length + 1 + percentWidth, bufferline);
+                Console.Write("]");
+            }
+
+            // Write percentage (right)
+            Console.SetCursorPosition(Math.Max(Console.CursorLeft, Console.WindowWidth) - 7, bufferline);
             Console.Write(progress);
 
             // Restore cursor position
