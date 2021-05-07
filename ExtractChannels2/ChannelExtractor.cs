@@ -69,10 +69,10 @@ namespace ExtractChannels2
             Parallel.For(0, dataCount, i =>
            {
                double valueInMilliVolts = (data[i] - adzero) * electrodeConvFactor;
-               valueInMilliVolts = (valueInMilliVolts - amplifierMinVolt) * voltToSample; // Convert to 16-bit sample centered around 0
+               valueInMilliVolts *= voltToSample; // Convert to 16-bit sample
 
                // Rounding is important to avoid noise
-               byte[] inBytes = BitConverter.GetBytes((ushort)Math.Round(valueInMilliVolts));
+               byte[] inBytes = BitConverter.GetBytes((short)Math.Round(valueInMilliVolts));
                newData[2 * i] = inBytes[0];
                newData[2 * i + 1] = inBytes[1];
            });
