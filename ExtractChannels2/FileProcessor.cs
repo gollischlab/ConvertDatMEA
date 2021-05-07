@@ -92,7 +92,7 @@ namespace ExtractChannels2
 
                 fileReader.FileClose();
             }
-            catch (Exception ex) when (ex is ExcFileIO || ex is ArgumentException) // Any other exceptions necessary?
+            catch (Exception ex) when (ex is ExcFileIO || ex is ArgumentException || ex is DataMisalignedException) // Any other exceptions necessary?
             {
                 OutputError(String.Format("Invalid or corrupt file {0}", filename), ex);
                 return false;
