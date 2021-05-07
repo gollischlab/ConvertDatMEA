@@ -14,6 +14,7 @@ namespace ExtractChannels2
         const string outDir = "ks_sorted";
         const string auxSubDir = "analog"; // You cannot create a directory named "aux" in Windows. wow
         const string outFile = "alldata.dat";
+        const string auxSuffix = "_aux.dat";
         static readonly Regex rgx = new Regex("\\d+");
 
         private int stimulusId = 0;
@@ -250,7 +251,7 @@ namespace ExtractChannels2
             for (int fileIdx = 0; fileIdx < files.Count; fileIdx++)
             {
                 string file = files[fileIdx];
-                stimPath[fileIdx] = Path.Combine(auxPath, string.Format("{0}_aux.dat", Path.GetFileNameWithoutExtension(file)));
+                stimPath[fileIdx] = Path.Combine(auxPath, string.Format("{0}{1}", Path.GetFileNameWithoutExtension(file), auxSuffix));
                 if (File.Exists(stimPath[fileIdx]))
                 {
 #if DEBUG
