@@ -12,6 +12,7 @@ namespace ExtractChannels2
     {
         const string fileExt = ".MSRD";
         const string outDir = "ks_sorted";
+        const string auxSubDir = "analog"; // You cannot create a directory named "aux" in Windows. wow
         const string outFile = "alldata.dat";
         static readonly Regex rgx = new Regex("\\d+");
 
@@ -19,6 +20,7 @@ namespace ExtractChannels2
         private string stimulusFileName = "";
         private readonly List<string> files;
         protected string rootPath = null;
+        protected string auxPath = null;
         private readonly bool verified = false;
         private bool sameDir = true;
         private readonly Reader fileReader = new Reader();
@@ -140,6 +142,12 @@ namespace ExtractChannels2
 
             // Sort the files by stimulus ID
             files.Sort(FileStimulusIDCompare);
+
+            // Set up paths
+            if (!string.IsNullOrWhiteSpace(rootPath)) {
+                rootPath = Path.Combine(rootPath, outDir) + Path.DirectorySeparatorChar;
+                auxPath = Path.Combine(rootPath, auxSubDir) + Path.DirectorySeparatorChar;
+            };
         }
 
         public void PrintMetadata()
@@ -197,7 +205,6 @@ namespace ExtractChannels2
                 return;
 
             // Create the output directory
-            rootPath = Path.Combine(rootPath, outDir) + Path.DirectorySeparatorChar;
             try
             {
                 Directory.CreateDirectory(rootPath);
@@ -208,6 +215,20 @@ namespace ExtractChannels2
                                     || ex is PathTooLongException)
             {
                 OutputError(String.Format("Directory {0} could not be created", outDir), ex);
+                return;
+            }
+
+            // Create the aux output directory
+            try
+            {
+                Directory.CreateDirectory(auxPath);
+            }
+            catch (Exception ex) when (ex is IOException
+                                    || ex is UnauthorizedAccessException
+                                    || ex is ArgumentException
+                                    || ex is PathTooLongException)
+            {
+                OutputError(String.Format("Directory {0} could not be created", auxSubDir), ex);
                 return;
             }
 
@@ -229,7 +250,7 @@ namespace ExtractChannels2
             for (int fileIdx = 0; fileIdx < files.Count; fileIdx++)
             {
                 string file = files[fileIdx];
-                stimPath[fileIdx] = Path.Combine(rootPath, string.Format("{0}_aux.dat", Path.GetFileNameWithoutExtension(file)));
+                stimPath[fileIdx] = Path.Combine(auxPath, string.Format("{0}_aux.dat", Path.GetFileNameWithoutExtension(file)));
                 if (File.Exists(stimPath[fileIdx]))
                 {
 #if DEBUG
