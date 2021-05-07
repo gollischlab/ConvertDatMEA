@@ -150,7 +150,7 @@ namespace ExtractChannels2
             }
         }
 
-        public void ExtractBins(string filepath, BinaryWriter auxWriter)
+        public long ExtractBins(string filepath, BinaryWriter auxWriter)
         {
             Reader fileReader = new Reader();
             fileReader.FileOpen(filepath);
@@ -162,6 +162,9 @@ namespace ExtractChannels2
             var pair = fileReader.RecordingHdr.FirstOrDefault();
             var recordId = pair.Key;
             var header = pair.Value;
+
+            // Number of total samples written (filtered data only)
+            long total_samples = 0;
 
             // Iterate over analog data and filtered data
             foreach (var analogStream in header.AnalogStreams.Where(v => 
@@ -213,6 +216,10 @@ namespace ExtractChannels2
                     int length = (int)(nEntities * chunkSize / 100 * sizeof(ushort));
                     WriteBin(analogInfo, bytebuffer, length);
 
+                    // Count the number of samples written
+                    if (analogInfo.DataSubType == enAnalogSubType.Electrode)
+                        total_samples += chunkSize / 100;
+
                     _progressUpdate((float)t0 * 100 / tF, analogInfo.DataSubType == enAnalogSubType.Auxiliary ? analogInfo.DataSubType.ToString() : "");
 
                     t0 += stride;
@@ -220,6 +227,7 @@ namespace ExtractChannels2
             };
 
             fileReader.FileClose();
+            return total_samples;
         }
 
         // Gets the amplifier gain (inverts electrode gain if needed)

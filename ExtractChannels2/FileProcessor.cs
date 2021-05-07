@@ -15,6 +15,7 @@ namespace ExtractChannels2
         const string auxSubDir = "analog"; // You cannot create a directory named "aux" in Windows. wow
         const string outFile = "alldata.dat";
         const string auxSuffix = "_aux.dat";
+        const string metaFile = "bininfo.txt";
         static readonly Regex rgx = new Regex("\\d+");
 
         private int stimulusId = 0;
@@ -22,10 +23,10 @@ namespace ExtractChannels2
         private readonly List<string> files;
         protected string rootPath = null;
         protected string auxPath = null;
+        protected long samplingRate = -1;
         private readonly bool verified = false;
         private bool sameDir = true;
         private readonly Reader fileReader = new Reader();
-
         private int bufferline = 0;
 
         private bool CheckFile(string file)
@@ -67,11 +68,27 @@ namespace ExtractChannels2
                 if (streams.Count() != 1)
                     throw new ExcFileIO("File contains no or more than one analog stream");
 
-                // Check for exaclty one filtered stream
+                // Retrieve sampling rate from a random analog channel
+                long tick = 0;
+                var electrode = streams.First().Value.Entities.FirstOrDefault();
+                if (electrode != null)
+                    tick = electrode.Tick;
+
+                // Check for exactly one filtered stream
                 streams = header.AnalogStreams.Where(v => v.Value.DataSubType == enAnalogSubType.Electrode && v.Value.Label.Contains("Filter"));
                 if (streams.Count() != 1)
                     throw new ExcFileIO("File contains no or more than one filtered stream");
-                var filtered = streams.First();
+
+                // Check for common sampling rate
+                if (streams.First().Value.Entities.Any(v => v.Tick != tick))
+                    throw new DataMisalignedException("Sampling rate does not match across channels");
+
+                // Check for matching sampling rate
+                long fs = 1000000 / tick; // From microseconds to Hz
+                if (samplingRate == -1)
+                    samplingRate = fs;
+                else if (samplingRate != fs)
+                    throw new DataMisalignedException("Sampling rate does not match across files");
 
                 fileReader.FileClose();
             }
@@ -145,7 +162,8 @@ namespace ExtractChannels2
             files.Sort(FileStimulusIDCompare);
 
             // Set up paths
-            if (!string.IsNullOrWhiteSpace(rootPath)) {
+            if (!string.IsNullOrWhiteSpace(rootPath))
+            {
                 rootPath = Path.Combine(rootPath, outDir) + Path.DirectorySeparatorChar;
                 auxPath = Path.Combine(rootPath, auxSubDir) + Path.DirectorySeparatorChar;
             };
@@ -266,9 +284,17 @@ namespace ExtractChannels2
             if (fileExists)
                 return;
 
+            // Avoid confusion on fail: Remove the meta file beforehand
+            string metaPath = Path.Combine(rootPath, metaFile);
+            if (File.Exists(metaPath))
+                File.Delete(metaPath);
+
             // All set, let's go
             Console.WriteLine("\r\n");
             Console.CursorVisible = false;
+            String[] metaLines = new String[files.Count + 2];
+            metaLines[0] = "252";
+            metaLines[1] = samplingRate.ToString();
             bool success = true;
             using (BinaryWriter writer = new BinaryWriter(File.Open(outPath, FileMode.CreateNew)))
             {
@@ -287,7 +313,8 @@ namespace ExtractChannels2
                     {
                         try
                         {
-                            extractor.ExtractBins(file, auxWriter);
+                            long num_samples = extractor.ExtractBins(file, auxWriter);
+                            metaLines[fileIdx + 2] = num_samples.ToString();
                         }
                         catch (ExcFileIO ex)
                         {
@@ -304,6 +331,7 @@ namespace ExtractChannels2
 
             if (success)
             {
+                File.WriteAllLines(metaPath, metaLines);
                 Console.WriteLine();
                 Console.WriteLine("Done");
                 Console.Title = "100% complete";
