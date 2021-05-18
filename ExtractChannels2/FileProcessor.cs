@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Kaitai;
 using Mcs.DataStream;
 using Mcs.RawDataFileIO;
 
@@ -67,6 +68,40 @@ namespace ExtractChannels2
                 OutputError(String.Format("File name does not contain a stimulus number: {0}", filename));
                 return false;
             };
+
+            // WIP: Inspect MCD file
+            if (extPath == ".MCD")
+            {
+                Mcdfile.McdHeader hdr;
+                if (true)
+                {
+                    // This here reads the entire file and loads the whole file into memory
+                    Mcdfile mcd = Mcdfile.FromFile(file);
+                    hdr = mcd.Header;
+                }
+                else
+                {
+                    // This here fails because it reads from the start of the file (does not seek past the magic bytes)
+                    hdr = Mcdfile.McdHeader.FromFile(file);
+                }
+                Console.WriteLine("Header length: {0}", hdr.Headerlen);
+                Console.WriteLine("Contained streams:");
+                foreach (Kaitai.Mcdfile.Stream stream in hdr.Streamlist.Streams)
+                {
+                    if (stream.Name == "STRMHDR ")
+                    {
+                        Mcdfile.StreamHeader strHdr = (Mcdfile.StreamHeader)stream.Content;
+                        Console.WriteLine("{0} (length: {1}) is of type {2} ({3}) with {4} channels", stream.Name, stream.Streamsize, strHdr.Typename, strHdr.Streamname, strHdr.Channelcount);
+                    }
+                    else
+                    {
+                        Console.WriteLine("{0} (length: {1}) is of unkown type", stream.Name, stream.Streamsize);
+                    }
+                }
+
+                // Abort for now
+                return false;
+            }
 
             // Roughly check file format
             try
