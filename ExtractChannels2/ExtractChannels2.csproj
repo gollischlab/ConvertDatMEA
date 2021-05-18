@@ -95,7 +95,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ChannelExtractor.cs" />
+    <Compile Include="DataConverter.cs" />
     <Compile Include="McdProcessor.cs" />
     <Compile Include="MsrdProcessor.cs" />
     <Compile Include="ExtractArguments.cs" />

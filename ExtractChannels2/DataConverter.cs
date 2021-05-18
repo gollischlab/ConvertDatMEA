@@ -12,29 +12,38 @@ using Mcs.DataStream;
 
 namespace ExtractChannels2
 {
-    class ChannelExtractor
+    class DataConverter
     {
         const int amplifierMinVolt = -4096; //mv
         const int amplifierMaxVolt = 4096; //mv
+        public const double voltToSample = (1 << 16) / (amplifierMaxVolt - amplifierMinVolt); // 16-bit range
 
         const int auxiliaryGain = 1;
         const int electrodeGain = 1100; // MEA-256 gain
 
         public delegate void OutputFunction(string line);
-        public delegate void ProgressUpdate(double percent, int stimulusId);
+        public delegate void ProgressUpdate(double percent, string type = "");
 
         OutputFunction _outputFunction = null;
         ProgressUpdate _progressUpdate = null;
+        BinaryWriter _channelWriter = null;
+        BinaryWriter _auxWriter = null;
+
+        private void OutputText(string text)
+        {
+            _outputFunction(text);
+        }
 
         private void OutputLine(string line)
         {
-            _outputFunction(line);
+            OutputText(line + "\r\n");
         }
 
-        public ChannelExtractor(OutputFunction function, ProgressUpdate updater)
+        public DataConverter(OutputFunction function, ProgressUpdate updater, BinaryWriter datWriter)
         {
             _outputFunction = function;
             _progressUpdate = updater;
+            _channelWriter = datWriter; // Dat file
         }
 
         private byte[] ConvertRange(int[] data, InfoChannel electrode, int gain = 1)
@@ -50,60 +59,44 @@ namespace ExtractChannels2
             if (2 * data.Count() != newData.Count())
                 throw new ArgumentException("Data and newData must be the same size");
 
-            double voltToSample = (1 << 16) / (amplifierMaxVolt - amplifierMinVolt); // bin files have a 16-bit range
-            double electrodeConvFactor = electrode.ConversionFactor * 1e-12 * 1e3 * gain;
+            double electrodeConvFactor = electrode.ConversionFactor            // Convert to:
+                                       * Math.Pow(10, electrode.Unit.Exponent) // Volt
+                                       * 1e3                                   // Millivolt
+                                       * gain;
             double adzero = electrode.ADZero;
 
             int dataCount = data.Count();
             Parallel.For(0, dataCount, i =>
            {
-               double valueInMilliVolts = (data[i] - adzero) * electrodeConvFactor; // the exponent -12 is magic? 
-               valueInMilliVolts = (valueInMilliVolts - amplifierMinVolt) * voltToSample; // Convert to 16-bit sample centered around 0
+               double valueInMilliVolts = (data[i] - adzero) * electrodeConvFactor;
+               valueInMilliVolts *= voltToSample; // Convert to 16-bit sample
 
-               byte[] inBytes = BitConverter.GetBytes((ushort)valueInMilliVolts);
+               // Rounding is important to avoid noise
+               byte[] inBytes = BitConverter.GetBytes((short)Math.Round(valueInMilliVolts));
                newData[2 * i] = inBytes[0];
                newData[2 * i + 1] = inBytes[1];
            });
         }
 
-
-        private void WriteBin(string filePath, byte[] data)
+        private void WriteBin(InfoStreamAnalog analogInfo, byte[] data, int length = 0)
         {
-            using (BinaryWriter writer = new BinaryWriter(File.Open(filePath, FileMode.CreateNew)))
+            if (length == 0)
+                length = data.Count();
+
+            switch (analogInfo.DataSubType)
             {
-                writer.Write((UInt32)(data.Count() / 2));
-                writer.Write((UInt32)2);
-                writer.Write((UInt32)3);
-                writer.Write((UInt32)4);
+                case enAnalogSubType.Electrode:
+                    _channelWriter.Write(data, 0, length);
+                    break;
 
-                writer.Write(data);
+                case enAnalogSubType.Auxiliary:
+                    _auxWriter.Write(data, 0, length);
+                    break;
+
+                default:
+                    throw new ArgumentOutOfRangeException(string.Format("Invalid stream type: {0}", analogInfo.DataSubType.ToString()));
             }
         }
-
-        /*
-        private void WriteBin(string filePath, ushort[] data)
-        {
-            using (MemoryStream memstream = new MemoryStream(4 * 4 + 2 * data.Count()))
-            {                // Header: [number of samples | 2 | 3 | 4] (4 bytes each)
-                using (BinaryWriter writer = new BinaryWriter(memstream))
-                {
-                    writer.Write((UInt32)data.Count());
-                    writer.Write((UInt32)2);
-                    writer.Write((UInt32)3);
-                    writer.Write((UInt32)4);
-                    
-                    // Data points are stored side-by-side, 2 bytes each
-                    foreach (ushort datapoint in data)
-                    {
-                        writer.Write(datapoint);
-                    }
-
-                    WriteBin(filePath, memstream.ToArray());
-                }
-            }
-        }
-        */
-
 
         Dictionary<string, int> layout252 = null;
         private int GetElectrodeOrder(InfoChannel electrode, int nChannels)
@@ -145,7 +138,7 @@ namespace ExtractChannels2
                 case enAnalogSubType.Auxiliary:
                     if (Int32.TryParse(electrode.Label, out int auxnumber))
                     {
-                        return 252 + auxnumber;
+                        return /* 252 + */ auxnumber; // Start at zero
                     }
                     else
                     {
@@ -157,62 +150,84 @@ namespace ExtractChannels2
             }
         }
 
-        private string GetBinPath(int stimulusId, int binId, string root)
+        public long ExtractBins(string filepath, BinaryWriter auxWriter)
         {
-            return String.Format("{0}{1}_{2}.bin", root, stimulusId, binId);
-        }
+            Reader fileReader = new Reader();
+            fileReader.FileOpen(filepath);
 
-        public void ExtractBins(string filepath, int stimulusId)
-        {
-                Reader fileReader = new Reader();
-                fileReader.FileOpen(filepath);
-                string rootPath = Path.GetDirectoryName(filepath);
-                rootPath = Path.Combine(rootPath, "RawChannels/");
-                Directory.CreateDirectory(rootPath);
+            // Frame time file for this stimulus
+            _auxWriter = auxWriter;
 
+            // Expect only one recording as guaranteed by FileProcessor::VerifyFiles
+            var pair = fileReader.RecordingHdr.FirstOrDefault();
+            var recordId = pair.Key;
+            var header = pair.Value;
 
-                foreach (int recordId in fileReader.Recordings)
+            // Number of total samples written (filtered data only)
+            long total_samples = 0;
+
+            // Iterate over analog data and filtered data
+            foreach (var analogStream in header.AnalogStreams.Where(v => 
+                   (v.Value.DataSubType == enAnalogSubType.Auxiliary && v.Value.Label.Contains("Analog"))
+                || (v.Value.DataSubType == enAnalogSubType.Electrode && v.Value.Label.Contains("Filter"))
+            ))
+            {
+                var analogInfo = analogStream.Value;
+                var analogGuid = analogStream.Key;
+                int signalGain = GetGain(analogInfo, false);
+
+                long tF = header.Duration;
+                long t0 = 0;
+                long stride = 10000;
+
+                // Nchannel × Nsamples
+                int[] buffer = new int[analogInfo.Entities.Count * stride];
+                byte[] bytebuffer = new byte[analogInfo.Entities.Count * stride * sizeof(ushort)];
+
+                while (t0 * 100 < tF)
                 {
-                    OutputLine(String.Format("Recording {0}\r\n", recordId));
-                    var header = fileReader.RecordingHdr[recordId];
+                    var entitiesIDs = analogInfo.Entities.GetIDs();
+                    int nEntities = entitiesIDs.Count();
 
+                    // Someone should check this factor of *100. There's something odd about it...
+                    long chunkSize = Math.Min(tF - t0 * 100, stride * 100);
 
-                    // Count the total number of channels
-                    int totalChannels = 0;
-                    foreach (var analogStream in header.AnalogStreams)
-                        totalChannels += analogStream.Value.Entities.Count();
+                    var dataChunk = fileReader.GetChannelData<int>(recordId, analogGuid, entitiesIDs, t0 * 100, t0 * 100 + chunkSize);
 
-                    int processedChannels = 0;
-                    foreach (var analogStream in header.AnalogStreams)
+                    foreach (var channelChunk in dataChunk)
                     {
-                        var analogInfo = analogStream.Value;
-                        var analogGuid = analogStream.Key;
-                        int signalGain = GetGain(analogInfo, false);
+                        // channelChunk is weird. It has only one element.
+                        var rawdata = channelChunk.Value[t0 * 100];
 
-                        OutputLine(String.Format("{0}\r\n", analogInfo.Label));
-                        OutputLine(String.Format("{0}\r\n", analogGuid));
-                        OutputLine(String.Format("{0}\r\n", analogInfo.DataSubType));
-                        OutputLine("------------------------\r\n");
+                        // Order the electrodes by channel map
+                        var electrode = analogInfo.Entities[channelChunk.Key];
+                        int keyID = GetBinID(analogInfo, electrode) - 1; // Indexing starts at zero
 
-
-                        //byte[] outputData = null; // placeholder for converted data
-
-                        foreach (var electrode in analogInfo.Entities)
+                        // stores the chunk in place at the Nchannels vs Nsamples matrix
+                        for (int t = 0; t < Math.Min(stride, rawdata.Length); t++)
                         {
-                            var data = fileReader.GetChannelData<int>(recordId, analogGuid, electrode.ID)[0];
-
-                            int binId = GetBinID(analogInfo, electrode);
-                            string binPath = GetBinPath(stimulusId, binId, rootPath);
-                            //byte[] outputData = ConvertRange(data, electrode, signalGain);
-                                
-                            WriteBin(binPath, ConvertRange(data, electrode, signalGain));
-                            DisplayProgress(electrode, binId, stimulusId);
-                            processedChannels += 1;
-                            _progressUpdate((float)processedChannels / totalChannels, stimulusId);
+                            buffer[nEntities * t + keyID] = (rawdata[t]);
                         }
                     }
+
+                    ConvertRange(buffer, analogInfo.Entities.First(), signalGain, bytebuffer);
+
+                    // Only write the portion that was read
+                    int length = (int)(nEntities * chunkSize / 100 * sizeof(ushort));
+                    WriteBin(analogInfo, bytebuffer, length);
+
+                    // Count the number of samples written
+                    if (analogInfo.DataSubType == enAnalogSubType.Electrode)
+                        total_samples += chunkSize / 100;
+
+                    _progressUpdate((float)t0 * 100 / tF, analogInfo.DataSubType == enAnalogSubType.Auxiliary ? analogInfo.DataSubType.ToString() : "");
+
+                    t0 += stride;
                 }
-                fileReader.FileClose();
+            };
+
+            fileReader.FileClose();
+            return total_samples;
         }
 
         // Gets the amplifier gain (inverts electrode gain if needed)
@@ -227,11 +242,6 @@ namespace ExtractChannels2
                 default:
                     return 1;
             }
-        }
-
-        private void DisplayProgress(InfoChannel electrode, int BinID, int stimulusId)
-        {
-            OutputLine(String.Format("{3,2} - {0,3} ({1}, bin {2,3})\r\n", electrode.ID, electrode.Label, BinID, stimulusId));
         }
     }
 }

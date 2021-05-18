@@ -176,6 +176,8 @@ namespace ExtractChannels2
                 Console.WriteLine();
 
                 PrintMetadataFile(file);
+
+                Console.WriteLine();
             }
         }
 
@@ -266,7 +268,7 @@ namespace ExtractChannels2
                 if (this is McdProcessor)
                     throw new NotImplementedException("MCD files are not supported yet");
 
-                ChannelExtractor extractor = new ChannelExtractor(OutputFunction, ProgressUpdate, writer);
+                DataConverter extractor = new DataConverter(OutputFunction, ProgressUpdate, writer);
 
                 // Read the stimulus files
                 for (int fileIdx = 0; fileIdx < files.Count; fileIdx++)

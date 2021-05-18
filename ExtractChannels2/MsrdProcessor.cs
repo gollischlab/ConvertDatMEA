@@ -91,21 +91,21 @@ namespace ExtractChannels2
                 List<int> numChannels = new List<int>();
                 foreach (var analogStream in header.AnalogStreams)
                     numChannels.Add(analogStream.Value.Entities.Count);
-                Console.WriteLine("Number of channels: {0} ({1})", numChannels.Sum(), string.Join(" + ", numChannels));
+
+                Console.WriteLine("Channels:       {0} ({1})", numChannels.Sum(), string.Join(" + ", numChannels));
+                Console.WriteLine("Duration:       {0} sec", header.Duration / 1000 / 1000);
+                Console.WriteLine("Sampling rate:  {0} Hz", samplingRate);
 
                 // Loop over each recorded stream (analog data, filtered data, raw data, etc...)
+                short i = 0;
                 foreach (var analogStream in header.AnalogStreams)
                 {
-                    Console.WriteLine();
-                    Console.WriteLine("{0}", analogStream.Value.Label);
-                    Console.WriteLine("{0}", analogStream.Key);
-                    Console.WriteLine("{0}", analogStream.Value.DataSubType);
+                    Console.WriteLine("Stream {0}:       {1} ({2})", i, analogStream.Value.Label, analogStream.Value.DataSubType);
+                    i += 1;
                 }
 
                 Console.WriteLine();
             }
-
-            fileReader.FileClose();
         }
     }
 }
