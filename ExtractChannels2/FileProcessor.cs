@@ -284,17 +284,21 @@ namespace ExtractChannels2
             if (fileExists)
                 return;
 
-            // Avoid confusion on fail: Remove the meta file beforehand
+            // Avoid confusion on fail: Remove the info file beforehand
             string metaPath = Path.Combine(rootPath, metaFile);
             if (File.Exists(metaPath))
                 File.Delete(metaPath);
 
+            // Set up info text
+            const int headLines = 2; // 3;
+            String[] metaLines = new String[headLines + files.Count];
+            metaLines[0] = "252";                                          // Number of channels
+            metaLines[1] = samplingRate.ToString();                        // Sampling rate
+            // metaLines[2] = (1 / ChannelExtractor.voltToSample).ToString(); // Conversion from int16 to mV
+
             // All set, let's go
             Console.WriteLine("\r\n");
             Console.CursorVisible = false;
-            String[] metaLines = new String[files.Count + 2];
-            metaLines[0] = "252";
-            metaLines[1] = samplingRate.ToString();
             bool success = true;
             using (BinaryWriter writer = new BinaryWriter(File.Open(outPath, FileMode.CreateNew)))
             {
@@ -314,7 +318,7 @@ namespace ExtractChannels2
                         try
                         {
                             long num_samples = extractor.ExtractBins(file, auxWriter);
-                            metaLines[fileIdx + 2] = num_samples.ToString();
+                            metaLines[headLines + fileIdx] = num_samples.ToString();
                         }
                         catch (ExcFileIO ex)
                         {
