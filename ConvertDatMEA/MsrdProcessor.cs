@@ -4,7 +4,7 @@ using System.Linq;
 using Mcs.DataStream;
 using Mcs.RawDataFileIO;
 
-namespace ExtractChannels2
+namespace ConvertDatMEA
 {
     public class MsrdProcessor : FileProcessor
     {

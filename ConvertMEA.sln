@@ -10,7 +10,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		C:\Program Files\Multi Channel DataManager\McsRawDataFileIO.dll = C:\Program Files\Multi Channel DataManager\McsRawDataFileIO.dll
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExtractChannels2", "ExtractChannels2\ExtractChannels2.csproj", "{503DB2F4-0C8B-4826-BF9C-31ABFBC79D85}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConvertDatMEA", "ConvertDatMEA\ConvertDatMEA.csproj", "{503DB2F4-0C8B-4826-BF9C-31ABFBC79D85}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

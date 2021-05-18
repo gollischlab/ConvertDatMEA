@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using MCStream;
 
-namespace ExtractChannels2
+namespace ConvertDatMEA
 {
     class McdProcessor : FileProcessor
     {

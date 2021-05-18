@@ -1,2 +1,3 @@
-# ExtractChannels
-Extract channels from MEA recordings
+# ConvertMEA
+
+Convert channel data from MEA recordings to binary files

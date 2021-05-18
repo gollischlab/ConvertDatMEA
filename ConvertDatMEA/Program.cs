@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace ExtractChannels2
+namespace ConvertDatMEA
 {
 
     class Program

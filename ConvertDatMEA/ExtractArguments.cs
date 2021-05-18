@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace ExtractChannels2
+namespace ConvertDatMEA
 {
     class ExtractArguments
     {

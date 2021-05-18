@@ -10,7 +10,7 @@ using Mcs.DataStream;
 
 // Fernando Rozenblit, 2018
 
-namespace ExtractChannels2
+namespace ConvertDatMEA
 {
     class DataConverter
     {

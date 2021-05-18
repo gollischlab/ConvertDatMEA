@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 
-namespace ExtractChannels2
+namespace ConvertDatMEA
 {
     public class InvalidFileFormatException : Exception
     {
