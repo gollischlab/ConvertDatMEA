@@ -10,7 +10,7 @@ namespace ExtractChannels2
 {
     public class FileProcessor
     {
-        const string fileExt = ".MSRD";
+        static readonly string[] fileExt = { ".MCD", ".MSRD" };
         const string outDir = "ks_sorted";
         const string auxSubDir = "analog"; // You cannot create a directory named "aux" in Windows. wow
         const string outFile = "alldata.dat";
@@ -23,8 +23,10 @@ namespace ExtractChannels2
         private readonly List<string> files;
         protected string rootPath = null;
         protected string auxPath = null;
+        protected string extPath = null;
         protected long samplingRate = -1;
         private readonly bool verified = false;
+        private bool sameExt = true;
         private bool sameDir = true;
         private readonly Reader fileReader = new Reader();
         private int bufferline = 0;
@@ -39,14 +41,27 @@ namespace ExtractChannels2
                 return false;
             }
 
-            // Verify file
-            if (Path.GetExtension(file).ToUpper() != fileExt)
+            // Verify file extension
+            string ext = Path.GetExtension(file).ToUpper();
+            if (extPath == null)
             {
-                OutputError(String.Format("Wrong file extension: {0}", filename));
+                if (fileExt.Contains(ext))
+                {
+                    extPath = ext;
+                }
+                else
+                {
+                    OutputError(String.Format("Wrong file extension: {0}", filename));
+                    return false;
+                }
+            }
+            else if (extPath != ext)
+            {
+                sameExt = false;
                 return false;
             }
 
-            // Verify the file name contains a stimulus ID, i.e. "01_stimulusname.msrd"
+            // Verify the file name contains a stimulus ID, i.e. "01_stimulusname.ext"
             if (rgx.Match(Path.GetFileNameWithoutExtension(file)).Value == "")
             {
                 OutputError(String.Format("File name does not contain a stimulus number: {0}", filename));
@@ -126,13 +141,17 @@ namespace ExtractChannels2
             bool valid = true;
             foreach (string file in files)
             {
-                valid = valid && CheckFile(file);
+                valid &= CheckFile(file);
             }
 
             // Add general fails at the end
             if (!sameDir)
             {
                 OutputError("All files must reside in the same directory");
+            }
+            if (!sameExt)
+            {
+                OutputError("All files must be of identical type (file extension)");
             }
 
             return valid;
