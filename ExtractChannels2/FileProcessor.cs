@@ -1,22 +1,26 @@
-﻿using System;
+﻿using Mcs.RawDataFileIO;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
-using Kaitai;
-using Mcs.DataStream;
-using Mcs.RawDataFileIO;
 
 namespace ExtractChannels2
 {
-    public class FileProcessor
+    public class InvalidFileFormatException : Exception
     {
-        static readonly string[] fileExt = { ".MCD", ".MSRD" };
-        const string outDir = "ks_sorted";
-        const string auxSubDir = "analog"; // You cannot create a directory named "aux" in Windows. wow
-        const string outFile = "alldata.dat";
-        const string auxSuffix = "_aux.dat";
-        const string metaFile = "bininfo.txt";
+        public InvalidFileFormatException() : base() { }
+        public InvalidFileFormatException(string message) : base(message) { }
+        public InvalidFileFormatException(string message, Exception inner) : base(message, inner) { }
+    }
+
+    public abstract class FileProcessor
+    {
+        protected abstract string fileExt { get; } // .MSRD or .MCD
+        private const string outDir = "ks_sorted";
+        private const string auxSubDir = "analog"; // You cannot create a directory named "aux" in Windows. wow
+        private const string outFile = "alldata.dat";
+        private const string auxSuffix = "_aux.dat";
+        private const string metaFile = "bininfo.txt";
         static readonly Regex rgx = new Regex("\\d+");
 
         private int stimulusId = 0;
@@ -26,11 +30,29 @@ namespace ExtractChannels2
         protected string auxPath = null;
         protected string extPath = null;
         protected long samplingRate = -1;
+        protected long numChannels = -1;
         private readonly bool verified = false;
-        private bool sameExt = true;
         private bool sameDir = true;
-        private readonly Reader fileReader = new Reader();
         private int bufferline = 0;
+
+        protected abstract void CheckFileFormat(string file);
+        protected abstract void PrintMetadataFile(string file);
+
+        public static dynamic Create(List<string> filelist)
+        {
+            switch (Path.GetExtension(filelist[0]).ToUpper())
+            {
+                case ".MSRD":
+                    return new MsrdProcessor(filelist);
+
+                case ".MCD":
+                    return new McdProcessor(filelist);
+
+                default:
+                    OutputError("Only MCD and MSRD files are supported");
+                    return null;
+            }
+        }
 
         private bool CheckFile(string file)
         {
@@ -43,22 +65,9 @@ namespace ExtractChannels2
             }
 
             // Verify file extension
-            string ext = Path.GetExtension(file).ToUpper();
-            if (extPath == null)
+            if (Path.GetExtension(file).ToUpper() != fileExt)
             {
-                if (fileExt.Contains(ext))
-                {
-                    extPath = ext;
-                }
-                else
-                {
-                    OutputError(String.Format("Wrong file extension: {0}", filename));
-                    return false;
-                }
-            }
-            else if (extPath != ext)
-            {
-                sameExt = false;
+                OutputError(String.Format("Wrong file extension: {0}", filename));
                 return false;
             }
 
@@ -69,80 +78,15 @@ namespace ExtractChannels2
                 return false;
             };
 
-            // WIP: Inspect MCD file
-            if (extPath == ".MCD")
-            {
-                Mcdfile.McdHeader hdr;
-                if (true)
-                {
-                    // This here reads the entire file and loads the whole file into memory
-                    Mcdfile mcd = Mcdfile.FromFile(file);
-                    hdr = mcd.Header;
-                }
-                else
-                {
-                    // This here fails because it reads from the start of the file (does not seek past the magic bytes)
-                    hdr = Mcdfile.McdHeader.FromFile(file);
-                }
-                Console.WriteLine("Header length: {0}", hdr.Headerlen);
-                Console.WriteLine("Contained streams:");
-                foreach (Kaitai.Mcdfile.Stream stream in hdr.Streamlist.Streams)
-                {
-                    if (stream.Name == "STRMHDR ")
-                    {
-                        Mcdfile.StreamHeader strHdr = (Mcdfile.StreamHeader)stream.Content;
-                        Console.WriteLine("{0} (length: {1}) is of type {2} ({3}) with {4} channels", stream.Name, stream.Streamsize, strHdr.Typename, strHdr.Streamname, strHdr.Channelcount);
-                    }
-                    else
-                    {
-                        Console.WriteLine("{0} (length: {1}) is of unkown type", stream.Name, stream.Streamsize);
-                    }
-                }
-
-                // Abort for now
-                return false;
-            }
-
             // Roughly check file format
             try
             {
-                fileReader.FileOpen(file);
-
-                // Check for exactly one recording
-                if (fileReader.Recordings.Count != 1)
-                    throw new ExcFileIO("File contains no or more than one recording");
-                var header = fileReader.RecordingHdr.FirstOrDefault().Value;
-
-                // Check for exactly one analog stream
-                var streams = header.AnalogStreams.Where(v => v.Value.DataSubType == enAnalogSubType.Auxiliary && v.Value.Label.Contains("Analog"));
-                if (streams.Count() != 1)
-                    throw new ExcFileIO("File contains no or more than one analog stream");
-
-                // Retrieve sampling rate from a random analog channel
-                long tick = 0;
-                var electrode = streams.First().Value.Entities.FirstOrDefault();
-                if (electrode != null)
-                    tick = electrode.Tick;
-
-                // Check for exactly one filtered stream
-                streams = header.AnalogStreams.Where(v => v.Value.DataSubType == enAnalogSubType.Electrode && v.Value.Label.Contains("Filter"));
-                if (streams.Count() != 1)
-                    throw new ExcFileIO("File contains no or more than one filtered stream");
-
-                // Check for common sampling rate
-                if (streams.First().Value.Entities.Any(v => v.Tick != tick))
-                    throw new DataMisalignedException("Sampling rate does not match across channels");
-
-                // Check for matching sampling rate
-                long fs = 1000000 / tick; // From microseconds to Hz
-                if (samplingRate == -1)
-                    samplingRate = fs;
-                else if (samplingRate != fs)
-                    throw new DataMisalignedException("Sampling rate does not match across files");
-
-                fileReader.FileClose();
+                CheckFileFormat(file);
             }
-            catch (Exception ex) when (ex is ExcFileIO || ex is ArgumentException || ex is DataMisalignedException) // Any other exceptions necessary?
+            catch (Exception ex) when (ex is ExcFileIO
+                                    || ex is InvalidFileFormatException
+                                    || ex is ArgumentException
+                                    || ex is DataMisalignedException)
             {
                 OutputError(String.Format("Invalid or corrupt file {0}", filename), ex);
                 return false;
@@ -184,10 +128,6 @@ namespace ExtractChannels2
             {
                 OutputError("All files must reside in the same directory");
             }
-            if (!sameExt)
-            {
-                OutputError("All files must be of identical type (file extension)");
-            }
 
             return valid;
         }
@@ -205,7 +145,7 @@ namespace ExtractChannels2
             return id1 - id2;
         }
 
-        public FileProcessor(List<string> filelist)
+        protected FileProcessor(List<string> filelist)
         {
             files = filelist;
 
@@ -230,45 +170,12 @@ namespace ExtractChannels2
 
             foreach (string file in files)
             {
-                fileReader.FileOpen(file);
-
                 Console.WriteLine("------------------");
                 Console.WriteLine();
                 Console.WriteLine(file);
                 Console.WriteLine();
 
-                int numRec = fileReader.Recordings.Count;
-                if (numRec > 1)
-                {
-                    Console.WriteLine("Number of recordings: {0}\r\n", numRec);
-                }
-
-                foreach (int recordId in fileReader.Recordings)
-                {
-                    if (numRec > 1)
-                        Console.WriteLine("Recording {0}", recordId);
-
-                    var header = fileReader.RecordingHdr[recordId];
-
-                    // Count the total number of channels in recording (analog + electrodes, for example)
-                    List<int> numChannels = new List<int>();
-                    foreach (var analogStream in header.AnalogStreams)
-                        numChannels.Add(analogStream.Value.Entities.Count);
-                    Console.WriteLine("Number of channels: {0} ({1})", numChannels.Sum(), string.Join(" + ", numChannels));
-
-                    // Loop over each recorded stream (analog data, filtered data, raw data, etc...)
-                    foreach (var analogStream in header.AnalogStreams)
-                    {
-                        Console.WriteLine();
-                        Console.WriteLine("{0}", analogStream.Value.Label);
-                        Console.WriteLine("{0}", analogStream.Key);
-                        Console.WriteLine("{0}", analogStream.Value.DataSubType);
-                    }
-
-                    Console.WriteLine();
-                }
-
-                fileReader.FileClose();
+                PrintMetadataFile(file);
             }
         }
 
@@ -346,7 +253,7 @@ namespace ExtractChannels2
             // Set up info text
             const int headLines = 2; // 3;
             String[] metaLines = new String[headLines + files.Count];
-            metaLines[0] = "252";                                          // Number of channels
+            metaLines[0] = numChannels.ToString();                         // Number of channels
             metaLines[1] = samplingRate.ToString();                        // Sampling rate
             // metaLines[2] = (1 / ChannelExtractor.voltToSample).ToString(); // Conversion from int16 to mV
 
@@ -356,6 +263,9 @@ namespace ExtractChannels2
             bool success = true;
             using (BinaryWriter writer = new BinaryWriter(File.Open(outPath, FileMode.CreateNew)))
             {
+                if (this is McdProcessor)
+                    throw new NotImplementedException("MCD files are not supported yet");
+
                 ChannelExtractor extractor = new ChannelExtractor(OutputFunction, ProgressUpdate, writer);
 
                 // Read the stimulus files

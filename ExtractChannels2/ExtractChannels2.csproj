@@ -96,9 +96,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ChannelExtractor.cs" />
-    <Compile Include="Kaitai\KaitaiStream.cs" />
-    <Compile Include="Kaitai\KaitaiStruct.cs" />
-    <Compile Include="Mcdfile.cs" />
+    <Compile Include="McdProcessor.cs" />
+    <Compile Include="MsrdProcessor.cs" />
     <Compile Include="ExtractArguments.cs" />
     <Compile Include="FileProcessor.cs" />
     <Compile Include="Program.cs" />
@@ -118,6 +117,17 @@
       <ProductName>.NET Framework 3.5 SP1</ProductName>
       <Install>false</Install>
     </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <COMReference Include="MCStream">
+      <Guid>{8FB22B36-D3FE-11D3-8F42-008048B000C7}</Guid>
+      <VersionMajor>3</VersionMajor>
+      <VersionMinor>2</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>tlbimp</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </COMReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

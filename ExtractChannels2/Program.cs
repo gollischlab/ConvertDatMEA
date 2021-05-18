@@ -16,12 +16,18 @@ namespace ExtractChannels2
             Console.WriteLine();
 #endif
 
-            FileProcessor files = new FileProcessor(arguments.files);
+            if (arguments.files.Count == 0)
+            {
+                return;
+            }
 
-            if (arguments.onlyMetadata)
-                files.PrintMetadata();
-            else
-                files.Convert();
+            FileProcessor files = FileProcessor.Create(arguments.files);
+
+            if (files != null)
+                if (arguments.onlyMetadata)
+                    files.PrintMetadata();
+                else
+                    files.Convert();
 
             // Remove this to close the programm when done
             Console.ReadLine();
