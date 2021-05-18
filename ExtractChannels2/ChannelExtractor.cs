@@ -16,6 +16,7 @@ namespace ExtractChannels2
     {
         const int amplifierMinVolt = -4096; //mv
         const int amplifierMaxVolt = 4096; //mv
+        public const double voltToSample = (1 << 16) / (amplifierMaxVolt - amplifierMinVolt); // 16-bit range
 
         const int auxiliaryGain = 1;
         const int electrodeGain = 1100; // MEA-256 gain
@@ -58,7 +59,6 @@ namespace ExtractChannels2
             if (2 * data.Count() != newData.Count())
                 throw new ArgumentException("Data and newData must be the same size");
 
-            double voltToSample = (1 << 16) / (amplifierMaxVolt - amplifierMinVolt); // Output should have a 16-bit range
             double electrodeConvFactor = electrode.ConversionFactor            // Convert to:
                                        * Math.Pow(10, electrode.Unit.Exponent) // Volt
                                        * 1e3                                   // Millivolt
