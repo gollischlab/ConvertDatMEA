@@ -35,6 +35,7 @@ namespace ConvertDatMEA
         private bool sameDir = true;
         private int bufferline = 0;
         private bool started = false;
+        public bool success = false;
 
         protected abstract void CheckFileFormat(string file);
         protected abstract void PrintMetadataFile(string file);
@@ -248,7 +249,7 @@ namespace ConvertDatMEA
 
             // All set, let's go
             Console.CursorVisible = false;
-            bool success = true;
+            success = true;
             using (BinaryWriter writer = new BinaryWriter(File.Open(outPath, FileMode.CreateNew)))
             {
                 DataConverter extractor = DataConverter.FromFormat(fileExt, OutputFunction, ProgressUpdate, writer);

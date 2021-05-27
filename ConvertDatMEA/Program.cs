@@ -31,8 +31,11 @@ namespace ConvertDatMEA
                 else
                     files.Convert();
 
-            if (!arguments.noWait)
+            if (!arguments.noWait || !files.success)
                 Console.ReadLine();
+
+            // Proper exit code
+            Environment.Exit(files.success ? 0 : 1);
         }
     }
 }
