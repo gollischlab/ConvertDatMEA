@@ -8,6 +8,7 @@ namespace ConvertDatMEA
         public readonly List<string> files;
         public readonly bool initialized = false;
         public readonly bool onlyMetadata = false;
+        public readonly bool noWait = false;
 
         public static void DebugPrintArgs(string[] args)
         {
@@ -28,7 +29,10 @@ namespace ConvertDatMEA
             {
                 if (arg[0] == '-')
                 {
-                    if (arg == "-metadata") { onlyMetadata = true; }
+                    if (arg == "-metadata")
+                        onlyMetadata = true;
+                    else if (arg == "-nowait")
+                        noWait = true;
                     continue;
                 }
 

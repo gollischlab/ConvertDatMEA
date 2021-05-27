@@ -1,5 +1,4 @@
-﻿using Mcs.RawDataFileIO;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -31,9 +30,11 @@ namespace ConvertDatMEA
         protected string extPath = null;
         protected long samplingRate = -1;
         protected long numChannels = -1;
+        protected Dictionary<string, double> conversionFactor = new Dictionary<string, double>() { { "analog", double.NaN }, { "filter", double.NaN } };
         private readonly bool verified = false;
         private bool sameDir = true;
         private int bufferline = 0;
+        private bool started = false;
 
         protected abstract void CheckFileFormat(string file);
         protected abstract void PrintMetadataFile(string file);
@@ -83,10 +84,7 @@ namespace ConvertDatMEA
             {
                 CheckFileFormat(file);
             }
-            catch (Exception ex) when (ex is ExcFileIO
-                                    || ex is InvalidFileFormatException
-                                    || ex is ArgumentException
-                                    || ex is DataMisalignedException)
+            catch (Exception ex) // Let's just catch all exceptions
             {
                 OutputError(String.Format("Invalid or corrupt file {0}", filename), ex);
                 return false;
@@ -132,16 +130,16 @@ namespace ConvertDatMEA
             return valid;
         }
 
-        private int GetStimulusID(string file)
+        private int GetStimulusId(string file)
         {
             Int32.TryParse(rgx.Match(file).Value, out int id);
             return id;
         }
 
-        private int FileStimulusIDCompare(string file1, string file2)
+        private int FileStimulusIdCompare(string file1, string file2)
         {
-            int id1 = GetStimulusID(file1);
-            int id2 = GetStimulusID(file2);
+            int id1 = GetStimulusId(file1);
+            int id2 = GetStimulusId(file2);
             return id1 - id2;
         }
 
@@ -153,7 +151,7 @@ namespace ConvertDatMEA
             verified = VerifyFiles();
 
             // Sort the files by stimulus ID
-            files.Sort(FileStimulusIDCompare);
+            files.Sort(FileStimulusIdCompare);
 
             // Set up paths
             if (!string.IsNullOrWhiteSpace(rootPath))
@@ -170,13 +168,8 @@ namespace ConvertDatMEA
 
             foreach (string file in files)
             {
-                Console.WriteLine("------------------");
-                Console.WriteLine();
                 Console.WriteLine(file);
-                Console.WriteLine();
-
                 PrintMetadataFile(file);
-
                 Console.WriteLine();
             }
         }
@@ -191,10 +184,7 @@ namespace ConvertDatMEA
             {
                 Directory.CreateDirectory(rootPath);
             }
-            catch (Exception ex) when (ex is IOException
-                                    || ex is UnauthorizedAccessException
-                                    || ex is ArgumentException
-                                    || ex is PathTooLongException)
+            catch (Exception ex) // Let's just catch all exceptions
             {
                 OutputError(String.Format("Directory {0} could not be created", outDir), ex);
                 return;
@@ -205,10 +195,7 @@ namespace ConvertDatMEA
             {
                 Directory.CreateDirectory(auxPath);
             }
-            catch (Exception ex) when (ex is IOException
-                                    || ex is UnauthorizedAccessException
-                                    || ex is ArgumentException
-                                    || ex is PathTooLongException)
+            catch (Exception ex) // Let's just catch all exceptions
             {
                 OutputError(String.Format("Directory {0} could not be created", auxSubDir), ex);
                 return;
@@ -253,40 +240,38 @@ namespace ConvertDatMEA
                 File.Delete(metaPath);
 
             // Set up info text
-            const int headLines = 2; // 3;
-            String[] metaLines = new String[headLines + files.Count];
-            metaLines[0] = numChannels.ToString();                         // Number of channels
-            metaLines[1] = samplingRate.ToString();                        // Sampling rate
-            // metaLines[2] = (1 / ChannelExtractor.voltToSample).ToString(); // Conversion from int16 to mV
+            const int headLines = 3;
+            string[] metaLines = new string[headLines + files.Count];
+            metaLines[0] = numChannels.ToString();                      // Number of channels
+            metaLines[1] = samplingRate.ToString();                     // Sampling rate
+            metaLines[2] = (1 / DataConverter.voltToSample).ToString(); // Conversion from int16 to mV
 
             // All set, let's go
-            Console.WriteLine("\r\n");
             Console.CursorVisible = false;
             bool success = true;
             using (BinaryWriter writer = new BinaryWriter(File.Open(outPath, FileMode.CreateNew)))
             {
-                if (this is McdProcessor)
-                    throw new NotImplementedException("MCD files are not supported yet");
-
-                DataConverter extractor = new DataConverter(OutputFunction, ProgressUpdate, writer);
+                DataConverter extractor = DataConverter.FromFormat(fileExt, OutputFunction, ProgressUpdate, writer);
 
                 // Read the stimulus files
                 for (int fileIdx = 0; fileIdx < files.Count; fileIdx++)
                 {
                     string file = files[fileIdx];
                     stimulusFileName = Path.GetFileNameWithoutExtension(file);
-                    stimulusId = GetStimulusID(stimulusFileName);
+                    stimulusId = GetStimulusId(stimulusFileName);
 
-                    Console.WriteLine("Processing {0}", file);
+                    Console.WriteLine(file);
 
                     using (BinaryWriter auxWriter = new BinaryWriter(File.Open(stimPath[fileIdx], FileMode.CreateNew)))
                     {
+                        PrintMetadataFile(file);
+                        Console.WriteLine();
                         try
                         {
-                            long num_samples = extractor.ExtractBins(file, auxWriter);
+                            long num_samples = extractor.ExtractData(file, auxWriter);
                             metaLines[headLines + fileIdx] = num_samples.ToString();
                         }
-                        catch (ExcFileIO ex)
+                        catch (Exception ex)  // Let's just catch all exceptions
                         {
                             OutputError("Reading error", ex);
                             success = false;
@@ -327,7 +312,7 @@ namespace ConvertDatMEA
 
         private static int GetLastConsoleLine()
         {
-            return Math.Max(Console.CursorTop, Console.WindowHeight);
+            return Math.Max(Console.CursorTop, Console.WindowHeight-2);
         }
 
         private static void ClearConsoleLine(int line)
@@ -342,7 +327,7 @@ namespace ConvertDatMEA
 
         private void ProgressUpdate(double percent, string type = "")
         {
-            if (!String.IsNullOrWhiteSpace(type))
+            if (!string.IsNullOrWhiteSpace(type))
                 type = "(" + type + ")";
             string info = string.Format("{0,2}: {1} {2}", stimulusId, stimulusFileName, type);
             string progress = string.Format("{0,6:##0.00%}", percent);
@@ -351,9 +336,11 @@ namespace ConvertDatMEA
             int originalLeft = Console.CursorLeft;
 
             // Clear previously used line and set to last line (semi-robust to scrolling and resizing)
-            ClearConsoleLine(bufferline);
+            if (started)
+                ClearConsoleLine(bufferline);
             bufferline = GetLastConsoleLine();
             ClearConsoleLine(bufferline);
+            started = true;
 
             // Write stimulus file info (left)
             Console.SetCursorPosition(0, bufferline);
