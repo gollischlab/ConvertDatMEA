@@ -247,11 +247,18 @@ namespace ConvertDatMEA
             }
 
             // Same for the analog files
+            int stimCount = 0;
             string[] stimPath = new string[files.Count];
             for (int fileIdx = 0; fileIdx < files.Count; fileIdx++)
             {
                 string file = files[fileIdx];
-                stimPath[fileIdx] = Path.Combine(auxPath, string.Format("{0}{1}", Path.GetFileNameWithoutExtension(file), auxSuffix));
+                string filename = Path.GetFileNameWithoutExtension(file);
+                if (GetPartNum(file) > 0)
+                    filename = filename.Substring(0, filename.Length - 4);
+                else
+                    stimCount += 1;
+
+                stimPath[fileIdx] = Path.Combine(auxPath, string.Format("{0}{1}", filename, auxSuffix));
                 if (File.Exists(stimPath[fileIdx]))
                 {
 #if DEBUG
@@ -273,10 +280,10 @@ namespace ConvertDatMEA
 
             // Set up info text
             const int headLines = 3;
-            string[] metaLines = new string[headLines + files.Count];
-            metaLines[0] = numChannels.ToString();                      // Number of channels
-            metaLines[1] = samplingRate.ToString();                     // Sampling rate
-            metaLines[2] = (1 / DataConverter.voltToSample).ToString(); // Conversion from int16 to mV
+            double[] metaLines = new double[headLines + stimCount];
+            metaLines[0] = numChannels;                      // Number of channels
+            metaLines[1] = samplingRate;                     // Sampling rate
+            metaLines[2] = (1 / DataConverter.voltToSample); // Conversion from int16 to mV
 
             // All set, let's go
             Console.CursorVisible = false;
@@ -286,22 +293,25 @@ namespace ConvertDatMEA
                 DataConverter extractor = DataConverter.FromFormat(fileExt, OutputFunction, ProgressUpdate, writer);
 
                 // Read the stimulus files
+                int stimIdx = -1;
                 for (int fileIdx = 0; fileIdx < files.Count; fileIdx++)
                 {
                     string file = files[fileIdx];
                     stimulusFileName = Path.GetFileNameWithoutExtension(file);
                     stimulusId = GetStimulusId(stimulusFileName);
+                    if (GetPartNum(stimulusFileName) == 0)
+                        stimIdx += 1;
 
                     Console.WriteLine(file);
 
-                    using (BinaryWriter auxWriter = new BinaryWriter(File.Open(stimPath[fileIdx], FileMode.CreateNew)))
+                    using (BinaryWriter auxWriter = new BinaryWriter(File.Open(stimPath[fileIdx], FileMode.Append)))
                     {
                         PrintMetadataFile(file);
                         Console.WriteLine();
                         try
                         {
                             long num_samples = extractor.ExtractData(file, auxWriter);
-                            metaLines[headLines + fileIdx] = num_samples.ToString();
+                            metaLines[headLines + stimIdx] += num_samples;
                         }
                         catch (Exception ex)  // Let's just catch all exceptions
                         {
@@ -318,7 +328,7 @@ namespace ConvertDatMEA
 
             if (success)
             {
-                File.WriteAllLines(metaPath, metaLines);
+                File.WriteAllLines(metaPath, Array.ConvertAll(metaLines, i => i.ToString()));
                 Console.WriteLine();
                 Console.WriteLine("Done");
                 Console.Title = "100% complete";
