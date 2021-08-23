@@ -42,6 +42,25 @@ namespace ConvertDatMEA
 
         public static dynamic Create(List<string> filelist)
         {
+            List<string> filelistOld = new List<string>(filelist);
+            foreach (string file in filelistOld)
+            {
+                if (Directory.Exists(file))
+                {
+                    List<string> filelistSub = new List<string>(Directory.GetFiles(file, "*.mcd"));
+                    filelistSub.AddRange(Directory.GetFiles(file, "*.msrd"));
+                    int idx = filelist.IndexOf(file);
+                    filelist.Remove(file);
+                    filelist.InsertRange(idx, filelistSub);
+#if DEBUG
+                    Console.WriteLine("Expanding directory {0}", file);
+                    foreach (string fnew in filelistSub)
+                        Console.WriteLine(" {0}", fnew);
+                    Console.WriteLine();
+#endif
+                }
+            }
+
             switch (Path.GetExtension(filelist[0]).ToUpper())
             {
                 case ".MSRD":
