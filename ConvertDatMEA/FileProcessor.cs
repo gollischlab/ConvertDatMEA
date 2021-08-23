@@ -20,7 +20,8 @@ namespace ConvertDatMEA
         private const string outFile = "alldata.dat";
         private const string auxSuffix = "_aux.dat";
         private const string metaFile = "bininfo.txt";
-        static readonly Regex rgx = new Regex("\\d+");
+        static readonly Regex rgxId = new Regex("\\d+");
+        static readonly Regex rgxPart = new Regex("\\d{4}");
 
         private int stimulusId = 0;
         private string stimulusFileName = "";
@@ -93,7 +94,7 @@ namespace ConvertDatMEA
             }
 
             // Verify the file name contains a stimulus ID, i.e. "01_stimulusname.ext"
-            if (rgx.Match(Path.GetFileNameWithoutExtension(file)).Value == "")
+            if (rgxId.Match(Path.GetFileNameWithoutExtension(file)).Value == "")
             {
                 OutputError(String.Format("File name does not contain a stimulus number: {0}", filename));
                 return false;
@@ -152,14 +153,25 @@ namespace ConvertDatMEA
 
         private int GetStimulusId(string file)
         {
-            Int32.TryParse(rgx.Match(file).Value, out int id);
+            Int32.TryParse(rgxId.Match(file).Value, out int id);
             return id;
+        }
+
+        private int GetPartNum(string file)
+        {
+            Int32.TryParse(rgxPart.Match(Path.GetFileNameWithoutExtension(file)).Value, out int num);
+            return num;
         }
 
         private int FileStimulusIdCompare(string file1, string file2)
         {
             int id1 = GetStimulusId(file1);
             int id2 = GetStimulusId(file2);
+            if (id1 == id2)
+            {
+                id1 = GetPartNum(file1);
+                id2 = GetPartNum(file2);
+            }
             return id1 - id2;
         }
 
@@ -170,7 +182,7 @@ namespace ConvertDatMEA
             // Need to check all files before starting the conversion
             verified = VerifyFiles();
 
-            // Sort the files by stimulus ID
+            // Sort the files by stimulus ID and part number
             files.Sort(FileStimulusIdCompare);
 
             // Set up paths
