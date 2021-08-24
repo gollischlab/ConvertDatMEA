@@ -70,21 +70,11 @@
     <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="McsDataInterface">
-      <HintPath>C:\Program Files\Multi Channel DataManager\McsDataInterface.dll</HintPath>
-    </Reference>
     <Reference Include="McsDataStream">
       <HintPath>C:\Program Files\Multi Channel DataManager\McsDataStream.dll</HintPath>
     </Reference>
-    <Reference Include="McsDataTypes">
-      <HintPath>C:\Program Files\Multi Channel DataManager\McsDataTypes.dll</HintPath>
-    </Reference>
     <Reference Include="McsRawDataFileIO">
       <HintPath>C:\Program Files\Multi Channel DataManager\McsRawDataFileIO.dll</HintPath>
-    </Reference>
-    <Reference Include="MC_StreamNetLib, Version=4.6.3.6, Culture=neutral, processorArchitecture=AMD64">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Program Files\Multi Channel DataManager\MC_StreamNetLib.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
