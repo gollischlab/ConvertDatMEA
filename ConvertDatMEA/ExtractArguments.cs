@@ -9,6 +9,8 @@ namespace ConvertDatMEA
         public readonly bool initialized = false;
         public readonly bool onlyMetadata = false;
         public readonly bool noWait = false;
+        public readonly int windowWidth = 150;
+        public readonly int windowHeight = 40;
 
         public static void DebugPrintArgs(string[] args)
         {
@@ -33,6 +35,10 @@ namespace ConvertDatMEA
                         onlyMetadata = true;
                     else if (arg == "-nowait")
                         noWait = true;
+                    else if (arg.StartsWith("-w"))
+                        Int32.TryParse(arg.Substring(2), out windowWidth);
+                    else if (arg.StartsWith("-h"))
+                        Int32.TryParse(arg.Substring(2), out windowHeight);
                     continue;
                 }
 
