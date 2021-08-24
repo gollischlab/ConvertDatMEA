@@ -20,7 +20,7 @@ namespace ConvertDatMEA
         private const string outFile = "alldata.dat";
         private const string auxSuffix = "_aux.dat";
         private const string metaFile = "bininfo.txt";
-        static readonly Regex rgxId = new Regex("\\d+(?=_)");
+        static readonly Regex rgxId = new Regex("\\d+");
         static readonly Regex rgxPart = new Regex("\\d{4}");
 
         private int stimulusId = 0;
@@ -153,7 +153,7 @@ namespace ConvertDatMEA
 
         private int GetStimulusId(string file)
         {
-            Int32.TryParse(rgxId.Match(file).Value, out int id);
+            Int32.TryParse(rgxId.Match(Path.GetFileNameWithoutExtension(file)).Value, out int id);
             return id;
         }
 
