@@ -32,6 +32,7 @@ namespace ConvertDatMEA
             _idxheader = new IdxHeader(m_io, this, m_root);
             _data = new McdData(m_io, this, m_root);
             // _rest = m_io.ReadBytesFull(); // Do not read this
+            _rest = null;
             m_io.Seek(m_io.BaseStream.Length);
         }
         public partial class StreamFormat : KaitaiStruct
@@ -306,6 +307,7 @@ namespace ConvertDatMEA
             private void _read()
             {
                 // _content = m_io.ReadBytesFull(); // Do not read this
+                _content = null;
                 m_io.Seek(m_io.BaseStream.Length);
             }
             private byte[] _content;
@@ -431,6 +433,7 @@ namespace ConvertDatMEA
                 _timestampStart = m_io.ReadU8le();
                 _timestampEnd = m_io.ReadU8le();
                 // _chunkSample = m_io.ReadBytes((ChunkLen - 16)); // Do not load the entire file into memory on opening
+                _chunkSample = null;
                 _dataAddr = m_io.Pos;
                 m_io.Seek(m_io.Pos + (long)(ChunkLen - 16)); // Skip chunk for now
             }
