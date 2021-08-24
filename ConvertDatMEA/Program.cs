@@ -8,6 +8,7 @@ namespace ConvertDatMEA
         static void Main(string[] args)
         {
             Console.SetWindowSize(Math.Min(Console.LargestWindowWidth, 85), Math.Min(Console.LargestWindowHeight, 40));
+            Console.SetBufferSize(Console.WindowWidth, Console.BufferHeight);
             Console.Title = "ConvertDatMEA";
 
             ExtractArguments arguments = new ExtractArguments(args);
