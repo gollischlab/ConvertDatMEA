@@ -97,7 +97,7 @@ namespace ConvertDatMEA
                 Mcdfile.ChannelInfo[] channels = ChannelOrder(fileReader.Streams["filt0001"]);
                 foreach(Mcdfile.ChannelInfo channel in channels)
                 {
-                    Console.Write("{0,2} ", channel.DecoratedName);
+                    Console.Write("{0,3} ", channel.DecoratedName);
                     if (Console.CursorLeft + 4 > Console.WindowWidth)
                     {
                         Console.WriteLine();
