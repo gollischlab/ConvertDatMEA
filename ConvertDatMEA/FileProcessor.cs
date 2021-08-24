@@ -20,8 +20,8 @@ namespace ConvertDatMEA
         private const string outFile = "alldata.dat";
         private const string auxSuffix = "_aux.dat";
         private const string metaFile = "bininfo.txt";
-        static readonly Regex rgxId = new Regex("\\d+");
-        static readonly Regex rgxPart = new Regex("\\d{4}");
+        static readonly Regex rgxId = new Regex("^\\d+");
+        static readonly Regex rgxPart = new Regex("\\d{4}$");
 
         private int stimulusId = 0;
         private string stimulusFileName = "";
