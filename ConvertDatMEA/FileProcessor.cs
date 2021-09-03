@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace ConvertDatMEA
@@ -14,7 +15,7 @@ namespace ConvertDatMEA
 
     public abstract class FileProcessor
     {
-        protected abstract string fileExt { get; } // .MSRD or .MCD
+        protected abstract string FileExt { get; } // .MSRD or .MCD
         private const string outDir = "ks_sorted";
         private const string auxSubDir = "analog"; // You cannot create a directory named "aux" in Windows. wow
         private const string outFile = "alldata.dat";
@@ -22,6 +23,7 @@ namespace ConvertDatMEA
         private const string metaFile = "bininfo.txt";
         static readonly Regex rgxId = new Regex("^\\d+");
         static readonly Regex rgxPart = new Regex("\\d{4}$");
+        private static readonly Regex rgxChnLbl = new Regex("([a-zA-Z]?)(\\d+)");
 
         private int stimulusId = 0;
         private string stimulusFileName = "";
@@ -37,6 +39,7 @@ namespace ConvertDatMEA
         private int bufferline = 0;
         private bool started = false;
         public bool success = false;
+        protected string[] channelListOrder;
 
         protected abstract void CheckFileFormat(string file);
         protected abstract void PrintMetadataFile(string file);
@@ -87,7 +90,7 @@ namespace ConvertDatMEA
             }
 
             // Verify file extension
-            if (Path.GetExtension(file).ToUpper() != fileExt)
+            if (Path.GetExtension(file).ToUpper() != FileExt)
             {
                 OutputError(String.Format("Wrong file extension: {0}", filename));
                 return false;
@@ -193,6 +196,85 @@ namespace ConvertDatMEA
             };
         }
 
+        public void SetChannelOrder(string filepath)
+        {
+            if (!File.Exists(filepath) || Path.GetExtension(filepath).ToUpper() != ".TXT")
+            {
+                OutputError(String.Format("Channel order file {0} is not a valid txt file. Falling back to auto-ordering", filepath));
+                return;
+            }
+
+            string[] chanOrder = File.ReadAllLines(filepath);
+
+            // Trim strings
+            for (short i = 0; i < chanOrder.Length; i++)
+                chanOrder[i] = chanOrder[i].Trim();
+
+            // Remove empty lines
+            chanOrder = chanOrder.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+
+            if (chanOrder.Length != numChannels)
+            {
+                OutputError(String.Format("Number of channels in channel order list file ({0}) does not match with recording files ({1}). Falling back to auto-ordering", chanOrder.Length, numChannels));
+                return;
+            }
+
+            channelListOrder = chanOrder;
+        }
+
+        protected static int[] ChannelOrder(Dictionary<int, string> channels, string[] channelOrder = null, bool verbose = false)
+        {
+            int nChannels = channels.Count;
+            int[] channelIds = channels.Keys.ToArray();
+
+            int[] sortIds = new int[nChannels];
+
+            if (channelOrder != null)
+            {
+                bool valid = true;
+
+                // Get indices from specified channel order
+                for (int i = 0; i < nChannels; i++)
+                {
+                    string label = channelOrder[i];
+
+                    if (!channels.ContainsValue(label))
+                    {
+                        if (verbose)
+                            OutputError(string.Format("Channel name {0} from channel order file not found. Falling back to auto-ordering", label));
+                        valid = false;
+                        break;
+                    }
+
+                    sortIds[i] = channelIds[channels.Values.ToList().IndexOf(label)];
+                }
+
+                if (valid)
+                {
+                    if (verbose)
+                        OutputFunction("From file\r\n");
+                    return sortIds;
+                }
+            }
+
+            // Sort by label
+            string[] sortNames = new string[nChannels];
+            for (int i = 0; i < nChannels; i++)
+            {
+                int id = channelIds[i];
+                Match match = rgxChnLbl.Match(channels[id]);
+                string letter = match.Groups[1].Value;
+                int.TryParse(match.Groups[2].Value, out int num);
+                sortNames[i] = string.Format("{0}{1:000}", letter, num);
+                sortIds[i] = id;
+            }
+            Array.Sort(sortNames, sortIds);
+
+            if (verbose)
+                OutputFunction("Automatic ordering\r\n");
+            return sortIds;
+        }
+
         public void PrintMetadata()
         {
             if (!verified)
@@ -290,7 +372,7 @@ namespace ConvertDatMEA
             success = true;
             using (BinaryWriter writer = new BinaryWriter(File.Open(outPath, FileMode.CreateNew)))
             {
-                DataConverter extractor = DataConverter.FromFormat(fileExt, OutputFunction, ProgressUpdate, writer);
+                DataConverter extractor = DataConverter.FromFormat(FileExt, OutputFunction, ProgressUpdate, writer, channelListOrder);
 
                 // Read the stimulus files
                 int stimIdx = -1;
@@ -340,16 +422,18 @@ namespace ConvertDatMEA
             }
         }
 
-        private static void OutputError(string text, Exception ex = null)
+        protected static void OutputError(string text, Exception ex = null)
         {
             if (String.IsNullOrWhiteSpace(text))
                 text = "Error";
-            Console.ForegroundColor = ConsoleColor.DarkRed;
+            int originalLeft = Console.CursorLeft;
+            Console.ForegroundColor = ConsoleColor.Red;
             if (ex == null || String.IsNullOrWhiteSpace(ex.Message))
                 Console.Error.WriteLine(text);
             else
                 Console.Error.WriteLine("{0}: {1}", text, ex.Message);
             Console.ResetColor();
+            Console.SetCursorPosition(originalLeft, Console.CursorTop); // Maintain possible indent
         }
 
         private static int GetLastConsoleLine()
@@ -411,7 +495,13 @@ namespace ConvertDatMEA
 
         private static void OutputFunction(string text)
         {
+            int originalTop = Console.CursorTop;
+            int originalLeft = Console.CursorLeft;
+
             Console.Write(text);
+
+            if (originalTop != Console.CursorTop)
+                Console.SetCursorPosition(originalLeft, Console.CursorTop); // Maintain possible indent
         }
     }
 }

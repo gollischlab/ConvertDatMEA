@@ -7,7 +7,7 @@ namespace ConvertDatMEA
 {
     class McdConverter : DataConverter
     {
-        public McdConverter(OutputFunction function, ProgressUpdate updater, BinaryWriter datWriter) : base(function, updater, datWriter) { }
+        public McdConverter(OutputFunction function, ProgressUpdate updater, BinaryWriter datWriter, string[] channelOrder = null) : base(function, updater, datWriter, channelOrder) { }
 
         public override long ExtractData(string filepath, BinaryWriter auxWriter)
         {
@@ -30,11 +30,10 @@ namespace ConvertDatMEA
                     // Channels of this stream
                     int nChannels = (int)stream.Header.ChannelCount;
 
-                    // Sort channels by their electrode locations
-                    Mcdfile.ChannelInfo[] orderedChannels = McdProcessor.ChannelOrder(stream);
-                    int[] chanOrder = new int[nChannels]; // Get the inverse indices
-                    for (int i = 0; i < nChannels; i++)
-                        chanOrder[stream.Channels.IndexOf(orderedChannels[i])] = i;
+                    // Sort channels
+                    int[] sortIds = McdProcessor.ChannelOrder(stream, channelOrderList);
+                    int[] chanOrder = Enumerable.Range(0, nChannels).ToArray();
+                    Array.Sort(sortIds, chanOrder); // Get the inverse indices
 
                     // Data as byte and short
                     short[] buffer = new short[nChannels]; // Reading buffer

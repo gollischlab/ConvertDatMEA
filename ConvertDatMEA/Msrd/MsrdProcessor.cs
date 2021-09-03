@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Mcs.DataStream;
 using Mcs.RawDataFileIO;
 
@@ -9,9 +8,8 @@ namespace ConvertDatMEA
 {
     public class MsrdProcessor : FileProcessor
     {
-        protected override string fileExt {  get { return ".MSRD"; } }
+        protected override string FileExt {  get { return ".MSRD"; } }
         private readonly Reader fileReader = new Reader();
-        private static readonly Regex rgx = new Regex("([a-zA-Z]?)(\\d+)");
 
         public MsrdProcessor(List<string> filelist) : base(filelist) { }
 
@@ -39,8 +37,10 @@ namespace ConvertDatMEA
                     tick = electrode.Tick;
 
                 // Retrieve voltage conversion factor (mV per unit) from a random analog channel
-                Dictionary<string, double> factor = new Dictionary<string, double>();
-                factor["analog"] = (1 << electrode.ADCBits) * electrode.ConversionFactor * Math.Pow(10, electrode.Unit.Exponent) / (1 << 16) * 1e3;
+                Dictionary<string, double> factor = new Dictionary<string, double>
+                {
+                    ["analog"] = (1 << electrode.ADCBits) * electrode.ConversionFactor * Math.Pow(10, electrode.Unit.Exponent) / (1 << 16) * 1e3
+                };
 
                 // Check for exactly one filtered stream
                 streams = header.AnalogStreams.Where(v => v.Value.DataSubType == enAnalogSubType.Electrode && v.Value.Label.Contains("Filter"));
@@ -87,23 +87,11 @@ namespace ConvertDatMEA
             }
         }
 
-        public static int[] ChannelOrder(InfoStreamAnalog stream)
+        public static int[] ChannelOrder(InfoStreamAnalog stream, string[] channelOrder = null, bool verbose = false)
         {
-            var channelIds = stream.Entities.GetIDs();
-            int nChannels = channelIds.Count();
-            string[] sortNames = new string[nChannels];
-            int[] sortIds = new int[nChannels];
-            for (int i = 0; i < nChannels; i++)
-            {
-                int id = channelIds[i];
-                Match match = rgx.Match(stream.Entities[id].Label);
-                string letter = match.Groups[1].Value;
-                int.TryParse(match.Groups[2].Value, out int num);
-                sortNames[i] = string.Format("{0}{1:00}", letter, num);
-                sortIds[i] = id;
-            }
-            Array.Sort(sortNames, sortIds);
-            return sortIds;
+            // Indexing InfoStreamAnalog.Entities is by their InfoChannel.ID (not by some list index, see MCD)
+            Dictionary<int, string> dic = stream.Entities.ToDictionary(x => x.ID, x => x.Label);
+            return ChannelOrder(dic, channelOrder, verbose);
         }
 
         protected override void PrintMetadataFile(string file)
@@ -138,7 +126,9 @@ namespace ConvertDatMEA
 
             Console.Write("Channel order:  ");
             InfoStreamAnalog stream = header.AnalogStreams.Where(v => v.Value.Label.Contains("Filter")).FirstOrDefault().Value;
-            int[] channels = ChannelOrder(stream);
+            int[] channels = ChannelOrder(stream, channelListOrder, true);
+            if (Console.CursorLeft < 16)
+                Console.Write(new string(' ', 16));
             foreach (int channel in channels)
             {
                 Console.Write("{0,3} ", stream.Entities[channel].Label);

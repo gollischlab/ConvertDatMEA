@@ -6,7 +6,7 @@ namespace ConvertDatMEA
 {
     class McdProcessor : FileProcessor
     {
-        protected override string fileExt { get { return ".MCD"; } }
+        protected override string FileExt { get { return ".MCD"; } }
 
         public McdProcessor(List<string> filelist) : base(filelist) { }
 
@@ -56,18 +56,13 @@ namespace ConvertDatMEA
             }
         }
 
-        public static Mcdfile.ChannelInfo[] ChannelOrder(Stream stream)
+        public static int[] ChannelOrder(Stream stream, string[] channelOrder = null, bool verbose = false)
         {
-            int nChannels = (int)stream.Header.ChannelCount;
-            List<Mcdfile.ChannelInfo> localCopy = stream.Channels.GetRange(0, nChannels);
-            localCopy.Sort(delegate (Mcdfile.ChannelInfo a, Mcdfile.ChannelInfo b)
-            {
-                if (a.PosY == b.PosY)
-                    return ((ushort)a.PosX).CompareTo((ushort)b.PosX);
-                else
-                    return ((ushort)a.PosY).CompareTo((ushort)b.PosY);
-            });
-            return localCopy.ToArray();
+            // Mcdfile.ChannelInfo.Id may not be equal to the list index. Let's be on the safe side
+            Dictionary<int, string> dic = new Dictionary<int, string>(); // = stream.Channels.ToDictionary(x => (int)x.Id, x => x.DecoratedName);
+            for (int i = 0; i < (int)stream.Header.ChannelCount; i++)
+                dic[i] = stream.Channels[i].DecoratedName;
+            return ChannelOrder(dic, channelOrder, verbose);
         }
 
         protected override void PrintMetadataFile(string file)
@@ -94,10 +89,12 @@ namespace ConvertDatMEA
                     Console.WriteLine("Stream {0}:       {1} '{2}' ({3})", i++, stream.Header.StreamName, stream.Header.BufferId, stream.Header.TypeName);
 
                 Console.Write("Channel order:  ");
-                Mcdfile.ChannelInfo[] channels = ChannelOrder(fileReader.Streams["filt0001"]);
-                foreach(Mcdfile.ChannelInfo channel in channels)
+                int[] channels = ChannelOrder(fileReader.Streams["filt0001"], channelListOrder, true);
+                if (Console.CursorLeft < 16)
+                    Console.Write(new string(' ', 16));
+                foreach (int channel in channels)
                 {
-                    Console.Write("{0,3} ", channel.DecoratedName);
+                    Console.Write("{0,3} ", fileReader.Streams["filt0001"].Channels[channel].DecoratedName);
                     if (Console.CursorLeft + 4 > Console.WindowWidth)
                     {
                         Console.WriteLine();

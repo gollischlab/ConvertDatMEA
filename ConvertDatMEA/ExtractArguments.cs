@@ -9,6 +9,8 @@ namespace ConvertDatMEA
         public readonly bool initialized = false;
         public readonly bool onlyMetadata = false;
         public readonly bool noWait = false;
+        public readonly bool channelOrder = false;
+        public readonly string channelFile = null;
         public readonly int windowWidth = 150;
         public readonly int windowHeight = 40;
 
@@ -31,20 +33,29 @@ namespace ConvertDatMEA
             {
                 if (arg[0] == '-')
                 {
-                    if (arg == "-metadata")
+                    string argL = arg.ToLower();
+                    if (argL == "-metadata")
                         onlyMetadata = true;
-                    else if (arg == "-nowait")
+                    else if (argL == "-nowait")
                         noWait = true;
-                    else if (arg.StartsWith("-w"))
+                    else if (argL.StartsWith("-w"))
                         Int32.TryParse(arg.Substring(2), out windowWidth);
-                    else if (arg.StartsWith("-h"))
+                    else if (argL.StartsWith("-h"))
                         Int32.TryParse(arg.Substring(2), out windowHeight);
+                    else if (argL == "-channelorder")
+                        channelOrder = true;
                     continue;
                 }
 
-                files.Add(arg);               
+                if (channelOrder && channelFile is null)
+                    channelFile = arg;
+                else
+                    files.Add(arg);
             }
-            
+
+            if (channelOrder && channelFile is null)
+                channelOrder = false;
+
             initialized = true;
         }
     }

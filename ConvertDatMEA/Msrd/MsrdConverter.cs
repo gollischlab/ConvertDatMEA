@@ -12,7 +12,7 @@ namespace ConvertDatMEA
 {
     class MsrdConverter : DataConverter
     {
-        public MsrdConverter(OutputFunction function, ProgressUpdate updater, BinaryWriter datWriter) : base(function, updater, datWriter) { }
+        public MsrdConverter(OutputFunction function, ProgressUpdate updater, BinaryWriter datWriter, string[] channelOrder = null) : base(function, updater, datWriter, channelOrder) { }
 
         public override long ExtractData(string filepath, BinaryWriter auxWriter)
         {
@@ -52,7 +52,7 @@ namespace ConvertDatMEA
                 int nEntities = entitiesIDs.Count;
 
                 // Sort channels by their label
-                int[] sortIds = MsrdProcessor.ChannelOrder(analogInfo);
+                int[] sortIds = MsrdProcessor.ChannelOrder(analogInfo, channelOrderList);
                 Dictionary<int, int> chanOrder = Enumerable.Range(0, nEntities).ToDictionary(x => sortIds[x], x => x);
 
                 long tF = header.Duration;
