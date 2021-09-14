@@ -9,8 +9,19 @@ namespace ConvertDatMEA
         {
             ExtractArguments arguments = new ExtractArguments(args);
 
-            Console.SetWindowSize(Math.Min(Console.LargestWindowWidth, arguments.windowWidth), Math.Min(Console.LargestWindowHeight, arguments.windowHeight));
-            Console.SetBufferSize(Console.WindowWidth, Console.BufferHeight);
+            try
+            {
+                Console.SetWindowSize(Math.Min(Console.LargestWindowWidth, arguments.windowWidth), Math.Min(Console.LargestWindowHeight, arguments.windowHeight));
+                Console.SetBufferSize(Console.WindowWidth, Console.BufferHeight);
+            }
+            catch (NotImplementedException)
+            {
+                Console.ForegroundColor = ConsoleColor.DarkGray;
+                Console.WriteLine("WARNING: Console.SetWindowSize not supported");
+                Console.ResetColor();
+            }
+            string windowTitle = Console.Title;
+            bool cursor = Console.CursorVisible;
             Console.Title = "ConvertDatMEA";
 
 #if DEBUG
@@ -25,27 +36,34 @@ namespace ConvertDatMEA
             Console.WriteLine();
 #endif
 
-            if (arguments.files.Count == 0)
-                return;
-
-            FileProcessor files = FileProcessor.Create(arguments.files);
-
-            if (files != null)
+            bool success = true;
+            if (arguments.initialized && arguments.files.Count > 0)
             {
-                if (arguments.channelOrder)
-                    files.SetChannelOrder(arguments.channelFile);
+                FileProcessor files = FileProcessor.Create(arguments.files);
 
-                if (arguments.onlyMetadata)
-                    files.PrintMetadata();
-                else
-                    files.Convert();
+                if (files != null)
+                {
+                    if (arguments.channelOrder)
+                        files.SetChannelOrder(arguments.channelFile);
+
+                    if (arguments.onlyMetadata)
+                        files.PrintMetadata();
+                    else
+                        files.Convert();
+
+                    success = files.success;
+                }
             }
 
-            if (!arguments.noWait || !files.success)
+            if (!arguments.noWait || !success)
                 Console.ReadLine();
 
+            // Reset console
+            Console.Title = windowTitle;
+            Console.CursorVisible = cursor;
+
             // Proper exit code
-            Environment.Exit(files.success ? 0 : 1);
+            Environment.Exit(success ? 0 : 1);
         }
     }
 }
