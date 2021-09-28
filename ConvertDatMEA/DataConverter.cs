@@ -21,6 +21,7 @@ namespace ConvertDatMEA
         protected ProgressUpdate _progressUpdate = null;
         protected BinaryWriter _channelWriter = null;
         protected BinaryWriter _auxWriter = null;
+        protected string outPath = null;
         protected string[] channelOrderList = null;
 
         protected void OutputText(string text)
@@ -33,26 +34,27 @@ namespace ConvertDatMEA
             OutputText(line + "\r\n");
         }
 
-        public static DataConverter FromFormat(string fileExtension, OutputFunction function, ProgressUpdate updater, BinaryWriter datWriter, string[] channelOrder = null)
+        public static DataConverter FromFormat(string fileExtension, OutputFunction function, ProgressUpdate updater, BinaryWriter datWriter, string outPath, string[] channelOrder = null)
         {
             switch (fileExtension)
             {
                 case ".MCD":
-                    return new McdConverter(function, updater, datWriter, channelOrder);
+                    return new McdConverter(function, updater, datWriter, outPath, channelOrder);
 
                 case ".MSRD":
-                    return new MsrdConverter(function, updater, datWriter, channelOrder);
+                    return new MsrdConverter(function, updater, datWriter, outPath, channelOrder);
 
                 default:
                     throw new InvalidFileFormatException(string.Format("File format not supported: {0}", fileExtension));
             }
         }
 
-        protected DataConverter(OutputFunction function, ProgressUpdate updater, BinaryWriter datWriter, string[] channelOrder=null)
+        protected DataConverter(OutputFunction function, ProgressUpdate updater, BinaryWriter datWriter, string outPath, string[] channelOrder=null)
         {
             _outputFunction = function;
             _progressUpdate = updater;
             _channelWriter = datWriter; // Dat file
+            this.outPath = outPath;
             channelOrderList = channelOrder;
         }
 

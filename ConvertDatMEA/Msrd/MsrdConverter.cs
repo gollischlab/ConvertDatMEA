@@ -12,7 +12,8 @@ namespace ConvertDatMEA
 {
     class MsrdConverter : DataConverter
     {
-        public MsrdConverter(OutputFunction function, ProgressUpdate updater, BinaryWriter datWriter, string[] channelOrder = null) : base(function, updater, datWriter, channelOrder) { }
+        public MsrdConverter(OutputFunction function, ProgressUpdate updater, BinaryWriter datWriter, string outPath, string[] channelOrder = null)
+            : base(function, updater, datWriter, outPath, channelOrder) { }
 
         public override long ExtractData(string filepath, BinaryWriter auxWriter)
         {
@@ -30,11 +31,13 @@ namespace ConvertDatMEA
             var recordId = pair.Key;
             var header = pair.Value;
 
-            // Iterate over analog data and filtered data
-            foreach (var analogStream in header.AnalogStreams.Where(v =>
-                   (v.Value.DataSubType == enAnalogSubType.Auxiliary && v.Value.Label.Contains("Analog"))
-                || (v.Value.DataSubType == enAnalogSubType.Electrode && v.Value.Label.Contains("Filter"))
-            ))
+            // Notify if corrupt
+            double corruptAt = double.PositiveInfinity;
+
+            // Iterate over analog data and filtered data (analog data first)
+            var streams = header.AnalogStreams.Where(v => (v.Value.DataSubType == enAnalogSubType.Auxiliary && v.Value.Label.Contains("Analog")));
+            streams = streams.Concat(header.AnalogStreams.Where(v => (v.Value.DataSubType == enAnalogSubType.Electrode && v.Value.Label.Contains("Filter"))));
+            foreach (var analogStream in streams)
             {
                 var analogInfo = analogStream.Value;
                 var analogGuid = analogStream.Key;
@@ -63,12 +66,18 @@ namespace ConvertDatMEA
                 int[] buffer = new int[analogInfo.Entities.Count * stride];
                 byte[] bytebuffer = new byte[analogInfo.Entities.Count * stride * sizeof(short)];
 
-                while (t0 * 100 < tF)
+                while (t0 * 100 < tF && t0 < corruptAt)
                 {
                     // Someone should check this factor of *100. There's something odd about it...
                     long chunkSize = Math.Min(tF - t0 * 100, stride * 100);
 
                     var dataChunk = fileReader.GetChannelData<int>(recordId, analogGuid, entitiesIDs, t0 * 100, t0 * 100 + chunkSize);
+
+                    // Abort safely and keep the data so far, if the data is corrupted
+                    if (dataChunk.Any(v => v.Value.Count == 0)) {
+                        corruptAt = t0;
+                        break;
+                    }
 
                     foreach (var channelChunk in dataChunk)
                     {
@@ -98,6 +107,16 @@ namespace ConvertDatMEA
                     t0 += stride;
                 }
             };
+
+            // Incomplete conversion due to corrupt chunk
+            if (corruptAt < double.PositiveInfinity)
+            {
+                string errorMsg = string.Format("Encountered corrupt data in {0}. Keeping the first {1} samples.", Path.GetFileName(filepath), total_samples);
+                FileProcessor.OutputError(errorMsg);
+
+                // Write to file to not get lost
+                File.WriteAllText(Path.Combine(outPath, Path.GetFileNameWithoutExtension(filepath) + "_incomplete.txt"), errorMsg);
+            }
 
             fileReader.FileClose();
             return total_samples;

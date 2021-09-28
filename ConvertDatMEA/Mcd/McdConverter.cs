@@ -7,7 +7,8 @@ namespace ConvertDatMEA
 {
     class McdConverter : DataConverter
     {
-        public McdConverter(OutputFunction function, ProgressUpdate updater, BinaryWriter datWriter, string[] channelOrder = null) : base(function, updater, datWriter, channelOrder) { }
+        public McdConverter(OutputFunction function, ProgressUpdate updater, BinaryWriter datWriter, string outPath, string[] channelOrder = null)
+            : base(function, updater, datWriter, outPath, channelOrder) { }
 
         public override long ExtractData(string filepath, BinaryWriter auxWriter)
         {

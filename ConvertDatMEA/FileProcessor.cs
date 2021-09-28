@@ -372,7 +372,7 @@ namespace ConvertDatMEA
             success = true;
             using (BinaryWriter writer = new BinaryWriter(File.Open(outPath, FileMode.CreateNew)))
             {
-                DataConverter extractor = DataConverter.FromFormat(FileExt, OutputFunction, ProgressUpdate, writer, channelListOrder);
+                DataConverter extractor = DataConverter.FromFormat(FileExt, OutputFunction, ProgressUpdate, writer, rootPath, channelListOrder);
 
                 // Read the stimulus files
                 int stimIdx = -1;
@@ -422,7 +422,7 @@ namespace ConvertDatMEA
             }
         }
 
-        protected static void OutputError(string text, Exception ex = null)
+        public static void OutputError(string text, Exception ex = null)
         {
             if (String.IsNullOrWhiteSpace(text))
                 text = "Error";
