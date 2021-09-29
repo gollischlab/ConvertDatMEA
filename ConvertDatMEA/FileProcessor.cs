@@ -162,8 +162,25 @@ namespace ConvertDatMEA
 
         private int GetPartNum(string file)
         {
-            Int32.TryParse(rgxPart.Match(Path.GetFileNameWithoutExtension(file)).Value, out int num);
-            return num;
+            // Path.GetFileNameWithoutExtension fails if the filename contains a period but no file extension
+            string basename = Path.GetFileName(file);
+            if (basename.ToUpper().EndsWith(FileExt))
+            {
+                basename = basename.Substring(0, basename.Length - FileExt.Length);
+            }
+
+            // Find part number from file name
+            Int32.TryParse(rgxPart.Match(basename).Value, out int num);
+
+            // Check if there are actually previous parts to make sure the indices are correct
+            int count = 0;
+            for (int i = 0; i < num; i++)
+            {
+                string previousPart = basename.Substring(0, basename.Length - 4) + i.ToString("D4");
+                count += files.Any(v => Path.GetFileNameWithoutExtension(v) == previousPart) ? 1 : 0;
+            }
+
+            return count;
         }
 
         private int FileStimulusIdCompare(string file1, string file2)
