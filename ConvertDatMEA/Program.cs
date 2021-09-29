@@ -53,9 +53,14 @@ namespace ConvertDatMEA
 
                     success = files.success;
                 }
+                else
+                {
+                    success = false;
+                }
             }
 
-            if (!arguments.noWait || !success)
+            // If noWait and stderr is redirected, exit even when there was an error
+            if (!arguments.noWait || (!success && !Console.IsErrorRedirected))
                 Console.ReadLine();
 
             // Reset console

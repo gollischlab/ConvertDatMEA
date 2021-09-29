@@ -445,10 +445,18 @@ namespace ConvertDatMEA
                 text = "Error";
             int originalLeft = Console.CursorLeft;
             Console.ForegroundColor = ConsoleColor.Red;
-            if (ex == null || String.IsNullOrWhiteSpace(ex.Message))
-                Console.Error.WriteLine(text);
-            else
-                Console.Error.WriteLine("{0}: {1}", text, ex.Message);
+            if (ex != null && !String.IsNullOrWhiteSpace(ex.Message))
+            {
+                text += ": " + ex.Message;
+            }
+            Console.Error.WriteLine(text);
+
+            // If redirected also show in console
+            if (Console.IsErrorRedirected && !Console.IsOutputRedirected)
+            {
+                Console.WriteLine(text);
+            }
+
             Console.ResetColor();
             Console.SetCursorPosition(originalLeft, Console.CursorTop); // Maintain possible indent
         }
