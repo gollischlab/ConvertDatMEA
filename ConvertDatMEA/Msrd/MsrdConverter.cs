@@ -74,7 +74,7 @@ namespace ConvertDatMEA
                     var dataChunk = fileReader.GetChannelData<int>(recordId, analogGuid, entitiesIDs, t0 * 100, t0 * 100 + chunkSize);
 
                     // Abort safely and keep the data so far, if the data is corrupted
-                    if (dataChunk.Any(v => v.Value.Count == 0)) {
+                    if (dataChunk.Any(v => v.Value.Count != 1)) {
                         corruptAt = t0;
                         break;
                     }
@@ -82,7 +82,7 @@ namespace ConvertDatMEA
                     foreach (var channelChunk in dataChunk)
                     {
                         // ChannelChunk is weird. It has only one element.
-                        var rawdata = channelChunk.Value[t0 * 100];
+                        var rawdata = channelChunk.Value.First().Value; // The key should always be t0 * 100, but I encountered a file where it wasn't
 
                         // Order the electrodes by channel map
                         int keyId = chanOrder[channelChunk.Key];
