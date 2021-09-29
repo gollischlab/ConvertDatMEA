@@ -60,7 +60,7 @@ namespace ConvertDatMEA
                 Mcdfile.Header hdr = file.HeaderIndex.HeaderList.Headers[i];
                 if (hdr.Content is Mcdfile.McsHeader mHdr)
                     mcsheader = mHdr;
-                else if (hdr.Content is Mcdfile.StreamHeader sHdr)  
+                else if (hdr.Content is Mcdfile.StreamHeader sHdr)
                     Streams.Add(sHdr.BufferId, new Stream(sHdr, (Mcdfile.StreamFormat)file.HeaderIndex.HeaderList.Headers[++i].Content, file.Data));
                 i++;
             }
@@ -136,7 +136,9 @@ namespace ConvertDatMEA
         public Mcdfile.StreamHeader Header;
         public Mcdfile.StreamFormat Format;
         public List<Mcdfile.ChannelInfo> Channels;
-        public List<Mcdfile.StreamChunk> Chunks;
+        private List<Mcdfile.StreamChunk> _chunks;
+        private Mcdfile.McdData _data;
+        private string _bufferId;
         public readonly bool isAnalog = false;
 
         public Stream(Mcdfile.StreamHeader header, Mcdfile.StreamFormat format, Mcdfile.McdData data)
@@ -144,8 +146,22 @@ namespace ConvertDatMEA
             Header = header;
             Format = format;
             Channels = header.Channels;
-            Chunks = data.Chunks.Where(v => v.Name == header.BufferId).ToList();
+            _chunks = null;
+            _data = data;
+            _bufferId = header.BufferId;
             isAnalog = header.TypeName == "analog";
+        }
+
+        public List<Mcdfile.StreamChunk> Chunks
+        {
+            get
+            {
+                if (_chunks == null)
+                {
+                    _chunks = _data.Chunks.Where(v => v.Name == _bufferId).ToList();
+                }
+                return _chunks;
+            }
         }
 
         public void Free()
@@ -154,7 +170,7 @@ namespace ConvertDatMEA
             Header = null;
             Format = null;
             Channels = null;
-            Chunks = null;
+            _chunks = null;
         }
     }
 }

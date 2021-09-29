@@ -464,7 +464,7 @@ namespace ConvertDatMEA
             int originalLeft = Console.CursorLeft;
 
             Console.SetCursorPosition(0, line);
-            Console.Write(new string(' ', Console.WindowWidth));
+            Console.Write(new string(' ', Console.BufferWidth));
             Console.SetCursorPosition(originalLeft, originalTop);
         }
 
@@ -500,7 +500,7 @@ namespace ConvertDatMEA
             }
 
             // Write percentage (right)
-            Console.SetCursorPosition(Math.Max(Console.CursorLeft, Console.WindowWidth) - 7, bufferline);
+            Console.SetCursorPosition(Math.Max(Console.CursorLeft, Console.BufferWidth) - 7, bufferline);
             Console.Write(progress);
 
             // Restore cursor position

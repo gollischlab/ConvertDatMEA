@@ -132,7 +132,7 @@ namespace ConvertDatMEA
             foreach (int channel in channels)
             {
                 Console.Write("{0,3} ", stream.Entities[channel].Label);
-                if (Console.CursorLeft + 4 > Console.WindowWidth)
+                if (Console.CursorLeft + 4 > Console.BufferWidth)
                 {
                     Console.WriteLine();
                     Console.Write(new string(' ', 16));

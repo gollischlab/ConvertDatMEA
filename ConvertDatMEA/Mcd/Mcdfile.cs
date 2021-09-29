@@ -269,7 +269,10 @@ namespace ConvertDatMEA
             {
                 m_parent = p__parent;
                 m_root = p__root;
-                _read();
+                // _read();
+                _chunks = null;
+                _chunkStartAddr = M_Io.Pos;
+                m_io.Seek((long)M_Parent.Idxheader.FinalIndexPointer); // Skip chunks for now
             }
             private void _read()
             {
@@ -285,9 +288,19 @@ namespace ConvertDatMEA
                 }
             }
             private List<StreamChunk> _chunks;
+            private long _chunkStartAddr;
             private Mcdfile m_root;
             private Mcdfile m_parent;
-            public List<StreamChunk> Chunks { get { return _chunks; } }
+            public List<StreamChunk> Chunks { get {
+                    if (_chunks == null)
+                    {
+                        long posBefore = M_Io.Pos;
+                        m_io.Seek(_chunkStartAddr);
+                        _read();
+                        m_io.Seek(posBefore);
+                    }
+                    return _chunks;
+                } }
             public Mcdfile M_Root { get { return m_root; } }
             public Mcdfile M_Parent { get { return m_parent; } }
         }

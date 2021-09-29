@@ -18,6 +18,9 @@ namespace ConvertDatMEA
             // Number of total samples written (filtered data only)
             long total_samples = 0;
 
+            // Give some indicator that it's loading
+            _progressUpdate(0, "Loading");
+
             using (McdReader fileReader = new McdReader(filepath))
             {
                 // Iterate over ordered streams (sorted to start with analog)

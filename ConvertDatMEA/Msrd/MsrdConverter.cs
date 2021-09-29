@@ -23,6 +23,9 @@ namespace ConvertDatMEA
             // Number of total samples written (filtered data only)
             long total_samples = 0;
 
+            // Give some indicator that it's loading
+            _progressUpdate(0, "Loading");
+
             Reader fileReader = new Reader();
             fileReader.FileOpen(filepath);
 
