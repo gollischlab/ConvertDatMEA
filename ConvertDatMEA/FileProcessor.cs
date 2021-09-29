@@ -85,21 +85,21 @@ namespace ConvertDatMEA
 
             if (!File.Exists(file))
             {
-                OutputError(String.Format("File not found: {0}", file));
+                OutputError(string.Format("File not found: {0}", file));
                 return false;
             }
 
             // Verify file extension
             if (Path.GetExtension(file).ToUpper() != FileExt)
             {
-                OutputError(String.Format("Wrong file extension: {0}", filename));
+                OutputError(string.Format("Wrong file extension: {0}", filename));
                 return false;
             }
 
             // Verify the file name contains a stimulus ID, i.e. "01_stimulusname.ext"
             if (rgxId.Match(Path.GetFileNameWithoutExtension(file)).Value == "")
             {
-                OutputError(String.Format("File name does not contain a stimulus number: {0}", filename));
+                OutputError(string.Format("File name does not contain a stimulus number: {0}", filename));
                 return false;
             };
 
@@ -110,7 +110,7 @@ namespace ConvertDatMEA
             }
             catch (Exception ex) // Let's just catch all exceptions
             {
-                OutputError(String.Format("Invalid or corrupt file {0}", filename), ex);
+                OutputError(string.Format("Invalid or corrupt file {0}", filename), ex);
                 return false;
             }
 
@@ -217,7 +217,7 @@ namespace ConvertDatMEA
         {
             if (!File.Exists(filepath) || Path.GetExtension(filepath).ToUpper() != ".TXT")
             {
-                OutputError(String.Format("Channel order file {0} is not a valid txt file. Falling back to auto-ordering", filepath));
+                OutputError(string.Format("Channel order file {0} is not a valid txt file. Falling back to auto-ordering", filepath));
                 return;
             }
 
@@ -232,7 +232,7 @@ namespace ConvertDatMEA
 
             if (chanOrder.Length != numChannels)
             {
-                OutputError(String.Format("Number of channels in channel order list file ({0}) does not match with recording files ({1}). Falling back to auto-ordering", chanOrder.Length, numChannels));
+                OutputError(string.Format("Number of channels in channel order list file ({0}) does not match with recording files ({1}). Falling back to auto-ordering", chanOrder.Length, numChannels));
                 return;
             }
 
@@ -317,7 +317,7 @@ namespace ConvertDatMEA
             }
             catch (Exception ex) // Let's just catch all exceptions
             {
-                OutputError(String.Format("Directory {0} could not be created", outDir), ex);
+                OutputError(string.Format("Directory {0} could not be created", outDir), ex);
                 return;
             }
 
@@ -328,7 +328,7 @@ namespace ConvertDatMEA
             }
             catch (Exception ex) // Let's just catch all exceptions
             {
-                OutputError(String.Format("Directory {0} could not be created", auxSubDir), ex);
+                OutputError(string.Format("Directory {0} could not be created", auxSubDir), ex);
                 return;
             }
 
@@ -340,7 +340,7 @@ namespace ConvertDatMEA
 #if DEBUG
                 File.Delete(outPath);
 #else
-                OutputError(String.Format("Output file already exists: {0}", outPath));
+                OutputError(string.Format("Output file already exists: {0}", outPath));
                 fileExists = true;
 #endif
             }
@@ -363,7 +363,7 @@ namespace ConvertDatMEA
 #if DEBUG
                     File.Delete(stimPath[fileIdx]);
 #else
-                    OutputError(String.Format("Output file already exists: {0}", stimPath[fileIdx]));
+                    OutputError(string.Format("Output file already exists: {0}", stimPath[fileIdx]));
                     fileExists = true;
 #endif
                 }
@@ -414,7 +414,7 @@ namespace ConvertDatMEA
                         }
                         catch (Exception ex)  // Let's just catch all exceptions
                         {
-                            OutputError("Reading error", ex);
+                            OutputError(string.Format("Error while converting {0}", file), ex);
                             success = false;
                             break; // Abort
                         }
