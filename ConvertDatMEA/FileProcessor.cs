@@ -176,7 +176,9 @@ namespace ConvertDatMEA
             int count = 0;
             for (int i = 0; i < num; i++)
             {
-                string previousPart = basename.Substring(0, basename.Length - 4) + i.ToString("D4");
+                string previousPart = basename.Substring(0, basename.Length - 4);
+                if (i > 0)
+                    previousPart += i.ToString("D4");
                 count += files.Any(v => Path.GetFileNameWithoutExtension(v) == previousPart) ? 1 : 0;
             }
 
