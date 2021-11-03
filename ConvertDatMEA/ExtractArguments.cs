@@ -72,13 +72,13 @@ namespace ConvertDatMEA
                     continue;
                 }
 
-                if (channelOrder && channelFile is null)
+                if (channelOrder && string.IsNullOrEmpty(channelFile))
                     channelFile = arg;
                 else
                     files.Add(arg);
             }
 
-            if (channelOrder && channelFile is null)
+            if (channelOrder && string.IsNullOrEmpty(channelFile))
                 channelOrder = false;
 
             if (files.Count == 0)

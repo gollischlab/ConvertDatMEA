@@ -49,8 +49,10 @@ namespace ConvertDatMEA
                     long chunkLen = stream.Chunks.Max(v => (long)v.ChunkLen - 16) / sizeof(short); // Largest size among all chunks (should all be identical)
 
                     // Iterate over all chunks
-                    foreach (var (chunkNum, chunk) in stream.Chunks.Select((value, i) => (i, value)))
+                    for (int chunkNum = 0; chunkNum < stream.Chunks.Count; chunkNum++)
                     {
+                        Mcdfile.StreamChunk chunk = stream.Chunks[chunkNum];
+
                         // Read one sample for all channels at a time (for easier channel ordering)
                         int sampleNum = 0;
                         while (chunk.ReadSamples(buffer, 0, nChannels * sampleNum, nChannels) > 0)

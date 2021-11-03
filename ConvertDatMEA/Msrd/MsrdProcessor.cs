@@ -39,7 +39,7 @@ namespace ConvertDatMEA
                 // Retrieve voltage conversion factor (mV per unit) from a random analog channel
                 Dictionary<string, double> factor = new Dictionary<string, double>
                 {
-                    ["analog"] = (1 << electrode.ADCBits) * electrode.ConversionFactor * Math.Pow(10, electrode.Unit.Exponent) / (1 << 16) * 1e3
+                    {"analog", (1 << electrode.ADCBits) * electrode.ConversionFactor * Math.Pow(10, electrode.Unit.Exponent) / (1 << 16) * 1e3}
                 };
 
                 // Check for exactly one filtered stream

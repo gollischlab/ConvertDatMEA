@@ -156,7 +156,8 @@ namespace ConvertDatMEA
 
         private int GetStimulusId(string file)
         {
-            Int32.TryParse(rgxId.Match(Path.GetFileNameWithoutExtension(file)).Value, out int id);
+            int id;
+            Int32.TryParse(rgxId.Match(Path.GetFileNameWithoutExtension(file)).Value, out id);
             return id;
         }
 
@@ -170,7 +171,8 @@ namespace ConvertDatMEA
             }
 
             // Find part number from file name
-            Int32.TryParse(rgxPart.Match(basename).Value, out int num);
+            int num;
+            Int32.TryParse(rgxPart.Match(basename).Value, out num);
 
             // Check if there are actually previous parts to make sure the indices are correct
             int count = 0;
@@ -283,7 +285,8 @@ namespace ConvertDatMEA
                 int id = channelIds[i];
                 Match match = rgxChnLbl.Match(channels[id]);
                 string letter = match.Groups[1].Value;
-                int.TryParse(match.Groups[2].Value, out int num);
+                int num;
+                int.TryParse(match.Groups[2].Value, out num);
                 sortNames[i] = string.Format("{0}{1:000}", letter, num);
                 sortIds[i] = id;
             }

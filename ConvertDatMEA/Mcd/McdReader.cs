@@ -58,10 +58,13 @@ namespace ConvertDatMEA
             while (i < file.HeaderIndex.HeaderList.Headers.Count)
             {
                 Mcdfile.Header hdr = file.HeaderIndex.HeaderList.Headers[i];
-                if (hdr.Content is Mcdfile.McsHeader mHdr)
-                    mcsheader = mHdr;
-                else if (hdr.Content is Mcdfile.StreamHeader sHdr)
+                if (hdr.Content is Mcdfile.McsHeader)
+                    mcsheader = (Mcdfile.McsHeader) hdr.Content;
+                else if (hdr.Content is Mcdfile.StreamHeader)
+                {
+                    Mcdfile.StreamHeader sHdr = (Mcdfile.StreamHeader) hdr.Content;
                     Streams.Add(sHdr.BufferId, new Stream(sHdr, (Mcdfile.StreamFormat)file.HeaderIndex.HeaderList.Headers[++i].Content, file.Data));
+                }
                 i++;
             }
 

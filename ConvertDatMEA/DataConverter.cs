@@ -74,7 +74,9 @@ namespace ConvertDatMEA
             if (2 * data.Length != newData.Length)
                 throw new ArgumentException("Data and newData must be the same size");
 
-            void loop(int from, int to)
+            // There are no local functions prior to C# 7.0
+            /*void loop(int from, int to)*/
+            Func<int, int, bool> loop = (from, to) =>
             {
                 for (int i = from; i < to; i++)
                 {
@@ -86,7 +88,8 @@ namespace ConvertDatMEA
                     newData[2 * i] = inBytes[0];
                     newData[2 * i + 1] = inBytes[1];
                 }
-            }
+                return false; // Lambda expressions require a return value
+            };
 
             // Only parallelize for large arrays
             if (data.Length > 5000)
