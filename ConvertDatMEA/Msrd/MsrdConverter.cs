@@ -37,9 +37,16 @@ namespace ConvertDatMEA
             // Notify if corrupt
             double corruptAt = double.PositiveInfinity;
 
-            // Iterate over analog data and filtered data (analog data first)
+            // Sort analog data and filtered data (analog data first)
             var streams = header.AnalogStreams.Where(v => (v.Value.DataSubType == enAnalogSubType.Auxiliary && v.Value.Label.Contains("Analog")));
             streams = streams.Concat(header.AnalogStreams.Where(v => (v.Value.DataSubType == enAnalogSubType.Electrode && v.Value.Label.Contains("Filter"))));
+
+            // Get sampling rate from a random channel. Common sampling rate guaranteed by FileProcessor::VerifyFiles
+            long oneSecond = 1000000;
+            long sampleLen = streams.First().Value.Entities.FirstOrDefault().Tick; // Sample length in microseconds
+            long samplesPerSec = oneSecond / sampleLen; // Samples per second
+
+            // Iterate over analog and filtered data
             foreach (var analogStream in streams)
             {
                 var analogInfo = analogStream.Value;
@@ -61,20 +68,23 @@ namespace ConvertDatMEA
                 int[] sortIds = MsrdProcessor.ChannelOrder(analogInfo, channelOrderList);
                 Dictionary<int, int> chanOrder = Enumerable.Range(0, nEntities).ToDictionary(x => sortIds[x], x => x);
 
+                // Mystery solved: header.Duration is in microseconds, not samples*100
                 long tF = header.Duration;
                 long t0 = 0;
-                long stride = 10000;
+                long missingSamplesAll = 0;
 
                 // Nchannel × Nsamples
-                int[] buffer = new int[analogInfo.Entities.Count * stride];
-                byte[] bytebuffer = new byte[analogInfo.Entities.Count * stride * sizeof(short)];
+                int[] buffer = new int[analogInfo.Entities.Count * samplesPerSec];
+                byte[] bytebuffer = new byte[analogInfo.Entities.Count * samplesPerSec * sizeof(short)];
 
-                while (t0 * 100 < tF && t0 < corruptAt)
+                // Iterate over one-second chunks
+                while (t0 < tF && t0 < corruptAt)
                 {
-                    // Someone should check this factor of *100. There's something odd about it...
-                    long chunkSize = Math.Min(tF - t0 * 100, stride * 100);
+                    long tChunkSize = Math.Min(tF - t0, oneSecond); // Chunk size in microseconds
+                    long fChunkSize = tChunkSize / sampleLen; // Chunk size in samples
 
-                    var dataChunk = fileReader.GetChannelData<int>(recordId, analogGuid, entitiesIDs, t0 * 100, t0 * 100 + chunkSize);
+                    // Hey, let's query data samples in time units but return sample units! Wow, nice idea!
+                    var dataChunk = fileReader.GetChannelData<int>(recordId, analogGuid, sortIds, t0, t0 + tChunkSize);
 
                     // Abort safely and keep the data so far, if the data is corrupted
                     if (dataChunk.Any(v => v.Value.Count != 1)) {
@@ -82,39 +92,67 @@ namespace ConvertDatMEA
                         break;
                     }
 
+                    // Iterate over channels
                     foreach (var channelChunk in dataChunk)
                     {
-                        // ChannelChunk is weird. It has only one element.
-                        var rawdata = channelChunk.Value.First().Value; // The key should always be t0 * 100, but I encountered a file where it wasn't
+                        // Some samples are missing in the beginning sometimes, why?
+                        var chnk = channelChunk.Value.First();
+                        long missingSamples = (chnk.Key - t0) / sampleLen;
+                        int[] rawdata;
+
+                        // Fill missing samples
+                        if (missingSamples > 0)
+                        {
+                            // Pad with zeros for channels and pad with first value for analog
+                            if (isAnalog)
+                                rawdata = Enumerable.Repeat(chnk.Value[0], (int) (missingSamples+chnk.Value.Length)).ToArray();
+                            else
+                                rawdata = new int[missingSamples + chnk.Value.Length];
+                            Array.Copy(chnk.Value, 0, rawdata, missingSamples, chnk.Value.Length); // Skip missing sample entries
+                            missingSamplesAll += missingSamples;
+                        }
+                        else
+                            rawdata = chnk.Value;
 
                         // Order the electrodes by channel map
                         int keyId = chanOrder[channelChunk.Key];
 
                         // Store the chunk in place at the Nchannels vs Nsamples matrix
-                        for (int t = 0; t < Math.Min(stride, rawdata.Length); t++)
+                        for (int t = 0; t < rawdata.Length; t++)
                             buffer[nEntities * t + keyId] = rawdata[t];
                     }
 
                     ConvertRange(buffer, bytebuffer, adzero, unitsPerAd);
 
                     // Only write the portion that was read
-                    int length = (int)(nEntities * chunkSize / 100 * sizeof(short));
+                    int length = (int)(nEntities * fChunkSize * sizeof(short));
                     WriteBin(isAnalog, bytebuffer, length);
 
                     // Count the number of samples written
                     if (!isAnalog)
-                        total_samples += chunkSize / 100;
+                        total_samples += fChunkSize;
 
-                    _progressUpdate((float)t0 * 100 / tF, isAnalog ? "Analog" : "");
+                    _progressUpdate((float)t0 / tF, isAnalog ? "Analog" : "");
 
-                    t0 += stride;
+                    // Increment reading position
+                    t0 += tChunkSize;
+                }
+
+                // Notify about missing samples
+                if (missingSamplesAll > 0)
+                {
+                    string errorMsg = string.Format("Filled {0} (avg) missing {1} samples in {2} with {3}.",
+                        missingSamplesAll / nEntities, isAnalog ? "analog" : "filtered",
+                        Path.GetFileName(filepath), isAnalog ? "next found value" : "zeros");
+                    FileProcessor.OutputError(errorMsg);
                 }
             };
 
             // Incomplete conversion due to corrupt chunk
             if (corruptAt < double.PositiveInfinity)
             {
-                string errorMsg = string.Format("Encountered corrupt data in {0}. Keeping the first {1} samples.", Path.GetFileName(filepath), total_samples);
+                string errorMsg = string.Format("Encountered corrupt data in {0}. Keeping the first {1} samples; missing {2} samples.",
+                    Path.GetFileName(filepath), total_samples, (header.Duration - corruptAt) / sampleLen);
                 FileProcessor.OutputError(errorMsg);
 
                 // Write to file to not get lost
