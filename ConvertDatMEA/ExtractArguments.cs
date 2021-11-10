@@ -30,12 +30,12 @@ namespace ConvertDatMEA
             Console.WriteLine("");
             Console.WriteLine("  Options");
             Console.WriteLine("  -------");
-            Console.WriteLine("    -help                          Show this information");
-            Console.WriteLine("    -metadata                      Show meta data of all files only and stop before processing");
-            Console.WriteLine("    -nowait                        Do not prompt for user input when done and close application");
-            Console.WriteLine("    -wN                            Specify window width, where N is the number of columns (integer)");
-            Console.WriteLine("    -hN                            Specify window height, where N is the number of rows (integer)");
-            Console.WriteLine("    -channelorder \"filepath.txt\"   Specify a custom channel order in a textfile");
+            Console.WriteLine("    -help                      Show this information");
+            Console.WriteLine("    -metadata                  Show meta data of all files without processing");
+            Console.WriteLine("    -nowait                    Close application when done");
+            Console.WriteLine("    -wN                        Window width. N is the number of columns");
+            Console.WriteLine("    -hN                        Window height. N is the number of rows");
+            Console.WriteLine("    -channelorder \"file.txt\"   Specify a custom channel order in a textfile");
             Console.WriteLine("");
         }
 
