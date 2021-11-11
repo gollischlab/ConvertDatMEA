@@ -36,6 +36,7 @@ namespace ConvertDatMEA
         protected Dictionary<string, double> conversionFactor = new Dictionary<string, double>() { { "analog", double.NaN }, { "filter", double.NaN } };
         private readonly bool verified = false;
         private bool sameDir = true;
+        private bool fileOrderError = false;
         private int bufferline = 0;
         private bool started = false;
         public bool success = false;
@@ -195,19 +196,28 @@ namespace ConvertDatMEA
             {
                 id1 = GetPartNum(file1);
                 id2 = GetPartNum(file2);
+                fileOrderError = fileOrderError || id1 == id2;
             }
             return id1 - id2;
         }
 
         protected FileProcessor(List<string> filelist)
         {
-            files = filelist;
+            files = filelist.ToList<string>(); // Create a copy for access during sorting
 
             // Need to check all files before starting the conversion
             verified = VerifyFiles();
 
             // Sort the files by stimulus ID and part number
-            files.Sort(FileStimulusIdCompare);
+            filelist.Sort(FileStimulusIdCompare); // Cannot order 'files' directly, because it is accessed during ordering
+            files = filelist;
+
+            // Handle file ordering error
+            if (fileOrderError)
+            {
+                OutputError("The recording file parts could not be ordered! Please adjust the file names to have unique parts.");
+                verified = false;
+            }
 
             // Set up paths
             if (!string.IsNullOrWhiteSpace(rootPath))
