@@ -425,7 +425,14 @@ namespace ConvertDatMEA
                         }
                     }
 
-                    ClearConsoleLine(GetLastConsoleLine());
+                    // Reset progress bar
+                    if (started)
+                    {
+                        ClearConsoleLine(bufferline);
+                        started = false;
+                    }
+
+                    Console.WriteLine();
                 }
             }
             Console.CursorVisible = true;
@@ -495,6 +502,8 @@ namespace ConvertDatMEA
             if (started)
                 ClearConsoleLine(bufferline);
             bufferline = GetLastConsoleLine();
+            if (bufferline == originalTop)
+                bufferline += 1;
             ClearConsoleLine(bufferline);
             started = true;
 
