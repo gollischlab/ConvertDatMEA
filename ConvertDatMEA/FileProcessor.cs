@@ -36,6 +36,7 @@ namespace ConvertDatMEA
         protected Dictionary<string, double> conversionFactor = new Dictionary<string, double>() { { "analog", double.NaN }, { "filter", double.NaN } };
         private readonly bool verified = false;
         private bool sameDir = true;
+        private bool hasParts = false;
         private bool fileOrderError = false;
         private int bufferline = 0;
         private bool started = false;
@@ -185,6 +186,8 @@ namespace ConvertDatMEA
                 count += files.Any(v => Path.GetFileNameWithoutExtension(v) == previousPart) ? 1 : 0;
             }
 
+            hasParts |= count > 0;
+
             return count;
         }
 
@@ -196,7 +199,7 @@ namespace ConvertDatMEA
             {
                 id1 = GetPartNum(file1);
                 id2 = GetPartNum(file2);
-                fileOrderError = fileOrderError || id1 == id2;
+                fileOrderError |= id1 == id2;
             }
             return id1 - id2;
         }
@@ -218,6 +221,12 @@ namespace ConvertDatMEA
                 OutputError("The recording file parts could not be ordered! Please adjust the file names to have unique parts.");
                 verified = false;
             }
+
+            // Warning with file parts in MSRD, because of file corruption (occasional varying sample length between analog and filtered streams)
+            if (hasParts && this.GetType() == typeof(MsrdProcessor))
+                OutputError("Warning: Using multiple file parts in MSRD is prone to frame time misalignment! " +
+                            "Please double-check the number of samples of the produced analog/filtered dat files. " +
+                            "Make sure to disable file splitting in the future for MSRD recordings.");
 
             // Set up paths
             if (!string.IsNullOrWhiteSpace(rootPath))
