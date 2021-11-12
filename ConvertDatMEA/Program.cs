@@ -1,10 +1,12 @@
 ﻿using System;
+using System.IO;
 
 namespace ConvertDatMEA
 {
-
     class Program
     {
+        public static ConsoleCopy logger;
+
         static void Main(string[] args)
         {
             ExtractArguments arguments = new ExtractArguments(args);
@@ -41,15 +43,18 @@ namespace ConvertDatMEA
             {
                 FileProcessor files = FileProcessor.Create(arguments.files);
 
-                if (files != null)
+                if (files != null && files.verified)
                 {
-                    if (arguments.channelOrder)
-                        files.SetChannelOrder(arguments.channelFile);
+                    using (logger = new ConsoleCopy(Path.Combine(files.OutputPath, "conversion_output_logger.txt"), disable: arguments.onlyMetadata))
+                    {
+                        if (arguments.channelOrder)
+                            files.SetChannelOrder(arguments.channelFile);
 
-                    if (arguments.onlyMetadata)
-                        files.PrintMetadata();
-                    else
-                        files.Convert();
+                        if (arguments.onlyMetadata)
+                            files.PrintMetadata();
+                        else
+                            files.Convert();
+                    }
 
                     success = files.success;
                 }

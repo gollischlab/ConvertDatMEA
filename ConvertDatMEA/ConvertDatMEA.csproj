@@ -87,6 +87,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ConsoleCopy.cs" />
     <Compile Include="Msrd\MsrdConverter.cs" />
     <Compile Include="Mcd\McdReader.cs" />
     <Compile Include="Mcd\Mcdfile.cs" />

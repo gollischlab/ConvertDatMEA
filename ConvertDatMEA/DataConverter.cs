@@ -31,7 +31,7 @@ namespace ConvertDatMEA
 
         protected void OutputLine(string line)
         {
-            OutputText(line + "\r\n");
+            OutputText(line + Environment.NewLine);
         }
 
         public static DataConverter FromFormat(string fileExtension, OutputFunction function, ProgressUpdate updater, BinaryWriter datWriter, string outPath, string[] channelOrder = null)

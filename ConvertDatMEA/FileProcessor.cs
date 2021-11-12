@@ -34,7 +34,7 @@ namespace ConvertDatMEA
         protected long samplingRate = -1;
         protected long numChannels = -1;
         protected Dictionary<string, double> conversionFactor = new Dictionary<string, double>() { { "analog", double.NaN }, { "filter", double.NaN } };
-        private readonly bool verified = false;
+        public readonly bool verified = false;
         private bool sameDir = true;
         private bool hasParts = false;
         private bool fileOrderError = false;
@@ -45,6 +45,8 @@ namespace ConvertDatMEA
 
         protected abstract void CheckFileFormat(string file);
         protected abstract void PrintMetadataFile(string file);
+
+        public string OutputPath { get { return rootPath; } }
 
         public static dynamic Create(List<string> filelist)
         {
@@ -61,7 +63,7 @@ namespace ConvertDatMEA
 #if DEBUG
                     Console.WriteLine("Expanding directory {0}", file);
                     foreach (string fnew in filelistSub)
-                        Console.WriteLine(" {0}", fnew);
+                        Console.WriteLine(" {0}", Path.GetFileName(fnew));
                     Console.WriteLine();
 #endif
                 }
@@ -215,6 +217,13 @@ namespace ConvertDatMEA
             filelist.Sort(FileStimulusIdCompare); // Cannot order 'files' directly, because it is accessed during ordering
             files = filelist;
 
+#if DEBUG
+            Console.WriteLine("Ordered files");
+            foreach (string v in files)
+                Console.WriteLine(" {0}", Path.GetFileName(v));
+            Console.WriteLine();
+#endif
+
             // Handle file ordering error
             if (fileOrderError)
             {
@@ -222,7 +231,7 @@ namespace ConvertDatMEA
                 verified = false;
             }
 
-            // Warning with file parts in MSRD, because of file corruption (occasional varying sample length between analog and filtered streams)
+            // Warning with file parts in MSRD, because of file corruption (occasionally varying samples between analog and filtered streams)
             if (hasParts && this.GetType() == typeof(MsrdProcessor))
                 OutputError("Warning: Using multiple file parts in MSRD is prone to frame time misalignment! " +
                             "Please double-check the number of samples of the produced analog/filtered dat files. " +
@@ -292,7 +301,7 @@ namespace ConvertDatMEA
                 if (valid)
                 {
                     if (verbose)
-                        OutputFunction("From file\r\n");
+                        OutputFunction("From file" + Environment.NewLine);
                     return sortIds;
                 }
             }
@@ -312,7 +321,7 @@ namespace ConvertDatMEA
             Array.Sort(sortNames, sortIds);
 
             if (verbose)
-                OutputFunction("Automatic ordering\r\n");
+                OutputFunction("Automatic ordering" + Environment.NewLine);
             return sortIds;
         }
 
@@ -489,7 +498,8 @@ namespace ConvertDatMEA
             }
 
             Console.ResetColor();
-            Console.SetCursorPosition(originalLeft, Console.CursorTop); // Maintain possible indent
+            Console.SetCursorPosition(0, Console.CursorTop); // Maintain possible indent
+            Console.Write(new string(' ', originalLeft)); // Logger-safe
         }
 
         private static int GetLastConsoleLine()
@@ -499,16 +509,24 @@ namespace ConvertDatMEA
 
         private static void ClearConsoleLine(int line)
         {
+            bool outBak = Program.logger.GetOutOnly();
+            Program.logger.SetOutOnly(true);
+
             int originalTop = Console.CursorTop;
             int originalLeft = Console.CursorLeft;
 
             Console.SetCursorPosition(0, line);
             Console.Write(new string(' ', Console.BufferWidth));
             Console.SetCursorPosition(originalLeft, originalTop);
+
+            Program.logger.SetOutOnly(outBak);
         }
 
         private void ProgressUpdate(double percent, string type = "")
         {
+            bool outBak = Program.logger.GetOutOnly();
+            Program.logger.SetOutOnly(true);
+
             if (!string.IsNullOrWhiteSpace(type))
                 type = "(" + type + ")";
             string info = string.Format("{0,2}: {1} {2}", stimulusId, stimulusFileName, type);
@@ -518,37 +536,38 @@ namespace ConvertDatMEA
             int originalLeft = Console.CursorLeft;
 
             // Clear previously used line and set to last line (semi-robust to scrolling and resizing)
-            if (started)
+            int newBufferline = GetLastConsoleLine();
+            if (newBufferline == originalTop)
+                newBufferline += 1;
+            if (started && bufferline != newBufferline)
                 ClearConsoleLine(bufferline);
-            bufferline = GetLastConsoleLine();
-            if (bufferline == originalTop)
-                bufferline += 1;
-            ClearConsoleLine(bufferline);
-            started = true;
+            bufferline = newBufferline;
 
-            // Write stimulus file info (left)
-            Console.SetCursorPosition(0, bufferline);
-            Console.Write(info);
+            started = true;
 
             // Show progress bar (if there is room for it)
             int percentWidth = Console.BufferWidth - (info.Length + progress.Length + 6);
             if (5 < percentWidth && percentWidth < Console.BufferWidth)
             {
-                Console.SetCursorPosition(info.Length + 1, bufferline);
-                Console.Write("[" + new string('#', (int)(percentWidth * percent)));
-                Console.SetCursorPosition(info.Length + 1 + percentWidth, bufferline);
-                Console.Write("]");
+                int filled = (int)(percentWidth * percent);
+                info += " " + "[" + new string('#', filled) + new string(' ', percentWidth - filled) + "]";
             }
 
-            // Write percentage (right)
-            Console.SetCursorPosition(Math.Max(Console.CursorLeft, Console.BufferWidth) - 7, bufferline);
-            Console.Write(progress);
+            // Add percentage on the right
+            int remainWidth = Console.BufferWidth - (info.Length + progress.Length + 1);
+            info += new string(' ', remainWidth) + progress;
+
+            // Write stimulus file info
+            Console.SetCursorPosition(0, bufferline);
+            Console.Write(info);
 
             // Restore cursor position
             Console.SetCursorPosition(originalLeft, originalTop);
 
             // Update title bar
             Console.Title = string.Format("{0}: {1}", stimulusId, progress);
+
+            Program.logger.SetOutOnly(outBak);
         }
 
         private static void OutputFunction(string text)
@@ -559,7 +578,10 @@ namespace ConvertDatMEA
             Console.Write(text);
 
             if (originalTop != Console.CursorTop)
-                Console.SetCursorPosition(originalLeft, Console.CursorTop); // Maintain possible indent
+            {
+                Console.SetCursorPosition(0, Console.CursorTop); // Maintain possible indent
+                Console.Write(new string(' ', originalLeft)); // Logger-safe
+            }
         }
     }
 }
