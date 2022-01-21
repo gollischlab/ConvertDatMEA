@@ -509,6 +509,9 @@ namespace ConvertDatMEA
 
         private static void ClearConsoleLine(int line)
         {
+            if (line >= Console.BufferHeight)
+                return;
+
             bool outBak = Program.logger.GetOutOnly();
             Program.logger.SetOutOnly(true);
 
@@ -539,6 +542,8 @@ namespace ConvertDatMEA
             int newBufferline = GetLastConsoleLine();
             if (newBufferline == originalTop)
                 newBufferline += 1;
+            if (newBufferline >= Console.BufferHeight)
+                newBufferline = Console.BufferHeight - 1;
             if (started && bufferline != newBufferline)
                 ClearConsoleLine(bufferline);
             bufferline = newBufferline;
