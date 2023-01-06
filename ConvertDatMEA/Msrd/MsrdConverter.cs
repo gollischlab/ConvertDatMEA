@@ -146,7 +146,7 @@ namespace ConvertDatMEA
                         Path.GetFileName(filepath), isAnalog ? "next found value" : "zeros");
                     FileProcessor.OutputError(errorMsg);
                 }
-            };
+            }
 
             // Incomplete conversion due to corrupt chunk
             if (corruptAt < double.PositiveInfinity)

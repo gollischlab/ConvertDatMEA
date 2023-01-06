@@ -65,7 +65,7 @@ namespace ConvertDatMEA
 
                             currBufferSize += nChannels;
                             sampleNum += 1;
-                        };
+                        }
 
                         // Do not convert and write too often. Conversion is slightly faster with more data at once
                         if (currBufferSize + chunkLen > bufferChunk.Length || chunkNum >= nChunks - 1)

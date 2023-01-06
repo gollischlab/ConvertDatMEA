@@ -105,7 +105,7 @@ namespace ConvertDatMEA
             {
                 OutputError(string.Format("File name does not contain a stimulus number: {0}", filename));
                 return false;
-            };
+            }
 
             // Roughly check file format
             try
@@ -238,11 +238,16 @@ namespace ConvertDatMEA
                             "Make sure to disable file splitting in the future for MSRD recordings.");
 
             // Set up paths
-            if (!string.IsNullOrWhiteSpace(rootPath))
+            if (rootPath != null)
             {
                 rootPath = Path.Combine(rootPath, outDir) + Path.DirectorySeparatorChar;
                 auxPath = Path.Combine(rootPath, auxSubDir) + Path.DirectorySeparatorChar;
-            };
+            }
+            else if (verified == true) // This error is confusing if there were already other errors
+            {
+                OutputError("The root path could not be determined. Try supplying the file names with absolute file paths.");
+                verified = false;
+            }
         }
 
         public void SetChannelOrder(string filepath)
