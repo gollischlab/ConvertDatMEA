@@ -3,7 +3,7 @@ name: build
 on:
   push:
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
     paths:
     - '**.cs'
     - '**.csproj'
@@ -40,7 +40,7 @@ jobs:
         mv .\output\McsDataTools.dll 'C:\Program Files\Multi Channel DataManager\'
         rm -r -fo output
         dir 'C:\Program Files\Multi Channel DataManager\'
-   
+
     - name: Build
       run: msbuild ConvertDatMEA\ConvertDatMEA.csproj -t:rebuild -verbosity:diag -property:Configuration=Release
 

@@ -1,6 +1,6 @@
 # ConvertDatMEA
 
-[![build](https://github.com/frozenblit/extractchannels/actions/workflows/build.yml/badge.svg)](https://github.com/frozenblit/extractchannels/actions/workflows/build.yml)
+[![build](https://github.com/gollischlab/ConvertDatMEA/actions/workflows/build.yml/badge.svg)](https://github.com/gollischlab/ConvertDatMEA/actions/workflows/build.yml)
 
 Console application to convert channel data from multielectrode array (MEA) recordings to binary DAT files for spike sorting.
 
