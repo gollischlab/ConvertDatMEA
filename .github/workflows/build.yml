@@ -1,0 +1,69 @@
+name: build
+
+on:
+  push:
+  pull_request:
+    branches: [ main ]
+    paths:
+    - '**.cs'
+    - '**.csproj'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+
+    name: build
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Add msbuild to PATH
+      uses: microsoft/setup-msbuild@v1.3.1
+
+    - name: Download and extract dependencies
+      run: |
+        dotnet tool install --global wix
+        Invoke-WebRequest https://download.multichannelsystems.com/download_data/software/multi-channel-datamanager/Multi%20Channel%20DataManager-1.14.10_x64.exe -O mcdsetup.exe
+        mkdir output
+        wix burn extract mcdsetup.exe -o output
+        7z x -ooutput .\output\a0
+        mkdir 'C:\Program Files\Multi Channel DataManager\'
+        mv .\output\McsDataStream.dll 'C:\Program Files\Multi Channel DataManager\'
+        mv .\output\McsRawDataFileIO.dll 'C:\Program Files\Multi Channel DataManager\'
+        mv .\output\MC_StreamNetLib.dll 'C:\Program Files\Multi Channel DataManager\'
+        mv .\output\McsDataTools.dll 'C:\Program Files\Multi Channel DataManager\'
+        rm -r -fo output
+        dir 'C:\Program Files\Multi Channel DataManager\'
+   
+    - name: Build
+      run: msbuild ConvertDatMEA\ConvertDatMEA.csproj -t:rebuild -verbosity:diag -property:Configuration=Release
+
+    - name: Clean up dependencies
+      run: rm -r -fo 'C:\Program Files\Multi Channel DataManager\'
+
+    - name: Upload release assets
+      if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        body: |
+
+          Download `ConvertDatMEA.exe` below.
+        append_body: true
+        files: ConvertDatMEA/bin/Release/ConvertDatMEA.exe
+
+    - name: Upload artifacts
+      if: github.event_name == 'workflow_dispatch'
+      uses: actions/upload-artifact@v4
+      with:
+        name: Binaries
+        overwrite: true
+        path: |
+          ConvertDatMEA/bin/Release/ConvertDatMEA.exe
+          ConvertDatMEA/bin/Release/ConvertDatMEA.exe.config
+          ConvertDatMEA/bin/Release/ConvertDatMEA.pdb
