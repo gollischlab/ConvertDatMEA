@@ -29,7 +29,7 @@ jobs:
     - name: Download and extract dependencies
       run: |
         dotnet tool install --global wix
-        Invoke-WebRequest https://download.multichannelsystems.com/download_data/software/multi-channel-datamanager/Multi%20Channel%20DataManager-1.14.10_x64.exe -O mcdsetup.exe
+        Invoke-WebRequest https://download.multichannelsystems.com/download_data/software/multi-channel-datamanager/Multi%20Channel%20DataManager-1.14.10_x64.exe -OutFile mcdsetup.exe
         mkdir output
         wix burn extract mcdsetup.exe -o output
         7z x -ooutput .\output\a0
